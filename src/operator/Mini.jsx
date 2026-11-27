@@ -1,3 +1,4 @@
+import { api } from '../bridge.js';
 import React from 'react';
 
 export function Logo({ size = 28 }) {
@@ -15,11 +16,23 @@ export function Logo({ size = 28 }) {
 }
 
 // A small copy of what the projector shows, sized to its box with container units.
+// Videos play silently here; the sound is only on the projector.
 export function Mini({ slide, theme, live, message }) {
   const th = theme || { bg: '#000000', fg: '#FFFFFF', accent: '#FF6B2C' };
+  const canPlay = api.kind === 'electron' || api.kind === 'browser';
+  const media = slide && slide.media;
+  const bg = slide && !media ? slide.bg : null;
+  const url = (m) => api.media.url(m.file);
   return (
     <div className={'mini' + (live ? ' live' : '')} style={{ background: th.bg, color: th.fg }}>
-      {slide ? (
+      {bg && (bg.kind === 'video'
+        ? (canPlay && live ? <video className="bg-fill" src={url(bg)} autoPlay loop muted playsInline /> : <video className="bg-fill" src={url(bg) + '#t=1'} muted preload="metadata" />)
+        : <img className="bg-fill" src={url(bg)} alt="" />)}
+      {bg && <div className="bg-dim" style={{ background: `rgba(0,0,0,${th.dim ?? 0.45})` }} />}
+      {media && (media.kind === 'video'
+        ? (canPlay ? <video className="media-fit" src={url(media) + (live ? '' : '#t=1')} muted autoPlay={!!live} loop={!!live} playsInline preload="metadata" /> : <div className="mini-inner"><div className="mini-text">▶ {media.name}</div></div>)
+        : <img className="media-fit" src={url(media)} alt={media.name || ''} />)}
+      {slide && !media ? (
         <div className="mini-inner">
           {slide.title && <div className="mini-title" style={{ color: th.accent }}>{slide.title}</div>}
           <div className="mini-text">{slide.text}</div>

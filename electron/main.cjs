@@ -1,7 +1,8 @@
 // Mwanga — Electron main process.
 // Windows: the operator screen, the projector output, and the preacher's (stage) screen.
 // Also: file storage, Bible files, the phone-remote server on the church Wi-Fi, and updates.
-const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess, protocol } = require('electron');
+const { Readable } = require('node:stream');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -14,6 +15,16 @@ const DIST = path.join(__dirname, '..', 'dist');
 const userDir = () => app.getPath('userData');
 const bundledBibles = path.join(__dirname, '..', 'data', 'bibles');
 const userBibles = () => path.join(userDir(), 'bibles');
+
+// Pictures and videos the church adds are copied into Mwanga's own folder and served to the windows
+// as mwanga-media://m/<file>, so they keep working if the original is moved or the USB stick is taken out.
+protocol.registerSchemesAsPrivileged([{ scheme: 'mwanga-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+const mediaDir = () => path.join(app.getPath('userData'), 'media');
+const MEDIA_TYPES = {
+  '.jpg': ['image', 'image/jpeg'], '.jpeg': ['image', 'image/jpeg'], '.png': ['image', 'image/png'], '.gif': ['image', 'image/gif'],
+  '.webp': ['image', 'image/webp'], '.bmp': ['image', 'image/bmp'],
+  '.mp4': ['video', 'video/mp4'], '.m4v': ['video', 'video/mp4'], '.mov': ['video', 'video/quicktime'], '.webm': ['video', 'video/webm'], '.mkv': ['video', 'video/x-matroska']
+};
 
 let operator = null;
 let output = null;
@@ -109,7 +120,8 @@ function pickDisplay(key, strict = false) {
 }
 
 function makeScreenWindow(display, title, hash) {
-  const opts = { backgroundColor: '#000000', frame: false, show: false, title, webPreferences: webPrefs, ...iconOpt() };
+  // videos on the projector start with sound without anyone clicking in that window
+  const opts = { backgroundColor: '#000000', frame: false, show: false, title, webPreferences: { ...webPrefs, autoplayPolicy: 'no-user-gesture-required' }, ...iconOpt() };
   if (display) Object.assign(opts, { x: display.bounds.x, y: display.bounds.y, width: display.bounds.width, height: display.bounds.height, fullscreen: true });
   else Object.assign(opts, { width: 960, height: 540, frame: true }); // no extra screen: a preview window to test with
   const win = new BrowserWindow(opts);
@@ -189,6 +201,14 @@ function handleRemote(req, res) {
       send(operator, 'remote:info', remoteInfo());
       const ping = setInterval(() => res.write(': ping\n\n'), 20000);
       req.on('close', () => { clearInterval(ping); remote.clients.delete(res); send(operator, 'remote:info', remoteInfo()); });
+      return;
+    }
+    if (url.pathname.startsWith('/api/media/')) {
+      const file = mediaPath(url.pathname.slice('/api/media/'.length));
+      const ext = file ? path.extname(file).toLowerCase() : '';
+      if (!file || (MEDIA_TYPES[ext] || [])[0] !== 'image') { res.writeHead(404); res.end(); return; } // pictures only: videos would flood the Wi-Fi
+      res.writeHead(200, { 'Content-Type': MEDIA_TYPES[ext][1] });
+      fs.createReadStream(file).pipe(res);
       return;
     }
     if (url.pathname === '/api/command' && req.method === 'POST') {
@@ -283,6 +303,58 @@ ipcMain.handle('listen:stop', () => { stopListener(); return true; });
 ipcMain.on('listen:audio', (_e, samples, language) => {
   if (listener && listenerReady && samples && samples.length <= 16000 * 12) listener.postMessage({ type: 'audio', samples, language });
 });
+
+// ---------- media ----------
+function serveMediaFile(file, rangeHeader) {
+  const ext = path.extname(file).toLowerCase();
+  const type = (MEDIA_TYPES[ext] || [null, 'application/octet-stream'])[1];
+  const size = fs.statSync(file).size;
+  const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader || '');
+  if (m) { // videos ask for pieces so the operator can jump around
+    const start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+    const end = m[1] && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    if (start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    return new Response(Readable.toWeb(fs.createReadStream(file, { start, end })), {
+      status: 206,
+      headers: { 'Content-Type': type, 'Content-Length': String(end - start + 1), 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes' }
+    });
+  }
+  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' } });
+}
+
+function mediaPath(name) {
+  const base = path.basename(decodeURIComponent(name || '')); // never outside the media folder
+  const file = path.join(mediaDir(), base);
+  return base && fs.existsSync(file) ? file : null;
+}
+
+function importMediaPaths(paths) {
+  fs.mkdirSync(mediaDir(), { recursive: true });
+  const out = [];
+  for (const p of paths) {
+    const ext = path.extname(p).toLowerCase();
+    if (!MEDIA_TYPES[ext]) continue;
+    const id = crypto.randomBytes(6).toString('hex');
+    const file = id + ext;
+    fs.copyFileSync(p, path.join(mediaDir(), file));
+    out.push({ id, file, kind: MEDIA_TYPES[ext][0], name: path.basename(p, path.extname(p)), size: fs.statSync(p).size });
+  }
+  return out;
+}
+
+ipcMain.handle('media:import', async () => {
+  // the automatic check passes its own files instead of opening the file picker
+  if (process.env.MWANGA_TEST_MEDIA) return importMediaPaths(process.env.MWANGA_TEST_MEDIA.split(';'));
+  const r = await dialog.showOpenDialog(operator, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Pictures and videos', extensions: Object.keys(MEDIA_TYPES).map((e) => e.slice(1)) }]
+  });
+  return r.canceled ? [] : importMediaPaths(r.filePaths.slice(0, 100));
+});
+ipcMain.handle('media:remove', (_e, file) => { const f = mediaPath(file); if (f) fs.unlinkSync(f); return true; });
+
+// the projector reports how far a video has played; the operator screen shows it
+ipcMain.on('video:progress', (_e, p) => send(operator, 'video:progress', p));
 
 // ---------- IPC ----------
 ipcMain.handle('app:version', () => app.getVersion());
@@ -445,6 +517,33 @@ async function screenshotRun(dir) {
   const followAfter = await outText();
   await snap(operator, 'operator-following.png');
   fs.writeFileSync(path.join(dir, 'song-check.json'), JSON.stringify({ songShown, followBefore, followAfter }, null, 1));
+  // pictures and videos: import, default background, poster, video with controls
+  if (process.env.MWANGA_TEST_MEDIA) {
+    const outHas = (sel) => output.webContents.executeJavaScript(`!!document.querySelector(${JSON.stringify(sel)})`);
+    await js(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'Media').click()`); await wait(300);
+    await js(`document.querySelector('#media-import').click()`); await wait(1200);
+    await js(`document.querySelectorAll('.media-card')[0].querySelectorAll('.row button')[2].click()`); await wait(300); // BG
+    await js(`document.querySelectorAll('.svc-main')[1].click()`); await wait(200);
+    await js(`document.querySelectorAll('.slide')[0].click()`); await wait(1200);
+    const bgShown = await outHas('img.bg-fill');
+    const bgLoaded = await output.webContents.executeJavaScript(`(() => { const i = document.querySelector('img.bg-fill'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
+    await snap(output, 'output-background.png'); await snap(operator, 'operator-media.png');
+    await js(`document.querySelectorAll('.media-card')[1].querySelector('.primary').click()`); await wait(1200);
+    const posterLoaded = await output.webContents.executeJavaScript(`(() => { const i = document.querySelector('img.media-fit'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
+    await snap(output, 'output-poster.png');
+    await js(`document.querySelectorAll('.media-card')[2].querySelector('.primary').click()`); await wait(3500);
+    const vid = () => output.webContents.executeJavaScript(`(() => { const v = document.querySelector('video.media-fit'); return v ? { t: v.currentTime, paused: v.paused, muted: v.muted, volume: v.volume, duration: v.duration, w: v.videoWidth } : null; })()`);
+    const playing = await vid();
+    const timeShown = await js(`(document.querySelector('#video-time') || {}).textContent || ''`);
+    await snap(operator, 'operator-video.png');
+    await js(`document.querySelector('#video-toggle').click()`); await wait(800);
+    const paused = await vid();
+    await js(`[...document.querySelectorAll('.video-ctl button')].find((b) => b.textContent.includes('Restart')).click()`); await wait(1200);
+    const restarted = await vid();
+    // seeking works only if the media protocol answers range requests
+    const seek = await output.webContents.executeJavaScript(`new Promise((r) => { const v = document.querySelector('video.media-fit'); v.currentTime = 8; v.onseeked = () => r(v.currentTime); setTimeout(() => r(-1), 3000); })`);
+    fs.writeFileSync(path.join(dir, 'media-check.json'), JSON.stringify({ bgShown, bgLoaded, posterLoaded, playing, timeShown, paused, restarted, seek }, null, 1));
+  }
   // start the real speech engine once and record its first message (proves it loads in this build)
   process.env.MWANGA_LISTEN_REAL = '1';
   const probe = await new Promise((resolve) => {
@@ -474,6 +573,11 @@ async function screenshotRun(dir) {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('mwanga-media', (req) => {
+    const file = mediaPath(new URL(req.url).pathname.slice(1));
+    if (!file) return new Response('Not found', { status: 404 });
+    return serveMediaFile(file, req.headers.get('range'));
+  });
   // only the operator screen may use the microphone (for the verse finder)
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && !!operator && wc === operator.webContents));
   session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && !!operator && wc === operator.webContents);

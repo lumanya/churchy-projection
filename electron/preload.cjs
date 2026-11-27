@@ -62,6 +62,15 @@ contextBridge.exposeInMainWorld('mwanga', {
     audio: (samples, language) => ipcRenderer.send('listen:audio', samples, language),
     onEvent: on('listen:event')
   },
+  media: {
+    import: () => ipcRenderer.invoke('media:import'),
+    remove: (file) => ipcRenderer.invoke('media:remove', file),
+    url: (file) => `mwanga-media://m/${encodeURIComponent(file)}`
+  },
+  video: {
+    report: (p) => ipcRenderer.send('video:progress', p),
+    onProgress: on('video:progress')
+  },
   openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
   findEasyWorship: () => ipcRenderer.invoke('easyworship:find'),
   findVideoPsalm: () => ipcRenderer.invoke('videopsalm:find')

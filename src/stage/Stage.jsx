@@ -25,11 +25,11 @@ export default function Stage() {
       {live.stageMessage ? <div className="stage-msg">{live.stageMessage}</div> : null}
       <div className="stage-now">
         <div className="stage-label">{live.black ? 'BLACK SCREEN' : 'NOW'}{slide && slide.ref ? ' · ' + slide.ref.split(' · ')[0] : ''}</div>
-        <div className="stage-now-text">{slide ? slide.text : ''}</div>
+        <div className="stage-now-text">{slide ? (slide.media ? `${slide.media.kind === 'video' ? '▶ Video' : 'Picture'}: ${slide.media.name}` : slide.text) : ''}</div>
       </div>
       <div className="stage-next">
         <div className="stage-label">NEXT{live.next && live.next.label ? ' · ' + live.next.label : ''}</div>
-        <div className="stage-next-text">{live.next ? live.next.text : '—'}</div>
+        <div className="stage-next-text">{live.next ? (live.next.media ? `${live.next.media.kind === 'video' ? '▶ Video' : 'Picture'}: ${live.next.media.name}` : live.next.text) : '—'}</div>
       </div>
     </div>
   );

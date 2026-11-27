@@ -14,6 +14,14 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.5: pictures and videos
+
+Library → **Media**:
+- **Add pictures and videos** (JPG, PNG, GIF, WebP; MP4, MOV, WebM, MKV). They are copied into Mwanga's folder, so they keep working if the original is moved or the USB stick is removed.
+- **Backgrounds**: choose a default background (picture, or a silent looping video) for songs, verses and notices, and how much to darken it. Any item can have its own background or none (picker above the slides).
+- **Posters and announcements**: show a picture on its own, full screen.
+- **Videos**: play with sound on the projector. Under the Live preview: Pause/Play, Restart, Repeat, Volume and the time played. The phone remote can pause and restart too.
+
 ## New in 0.4: song follower
 
 While listening is on, Mwanga also listens to the singing:

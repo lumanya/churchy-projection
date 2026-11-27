@@ -33,6 +33,14 @@ export default function Remote() {
         <button type="button" id="rm-next" className="primary" onClick={() => cmd({ type: 'next' })}>Next →</button>
       </div>
 
+      {live.slide && live.slide.media && live.slide.media.kind === 'video' && (
+        <div className="rm-three">
+          <button type="button" id="rm-video" className={live.video && live.video.playing ? '' : 'primary'} onClick={() => cmd({ type: 'videoToggle' })}>{live.video && live.video.playing ? '❚❚ Pause' : '▶ Play'}</button>
+          <button type="button" onClick={() => cmd({ type: 'videoRestart' })}>⟲ Restart</button>
+          <span />
+        </div>
+      )}
+
       <form className="rm-row" onSubmit={(e) => { e.preventDefault(); if (verse.trim()) { cmd({ type: 'verse', text: verse }); setVerse(''); } }}>
         <label className="sr" htmlFor="rm-verse">Verse</label>
         <input id="rm-verse" value={verse} onChange={(e) => setVerse(e.target.value)} placeholder="Verse, e.g. ps 23:1 or yh 3:16" enterKeyHint="go" />

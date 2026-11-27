@@ -92,7 +92,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
   return (
     <div className="lib">
       <div className="tabs" role="tablist">
-        {['songs', 'bible', 'notices'].map((k) => (
+        {['songs', 'bible', 'notices', 'media'].map((k) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(k)}</button>
         ))}
       </div>
@@ -157,6 +157,49 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
             ))}
           </div>
           <button type="button" className="wide" onClick={importBible}>{t('importBible')} (Zefania XML, USFM, JSON)</button>
+        </div>
+      )}
+
+      {tab === 'media' && (
+        <div className="lib-body">
+          <button type="button" id="media-import" className="primary" onClick={async () => {
+            const added = await api.media.import();
+            if (added.length) { setLibrary((l) => ({ ...l, media: [...added, ...(l.media || [])] })); flash(`${added.length} ${t('media').toLowerCase()} +`); }
+          }}>+ {t('addMedia')}</button>
+          <p className="muted small" style={{ margin: 0 }}>{t('mediaHelp')}</p>
+          <label className="field"><span>{t('defaultBg')}</span>
+            <select value={settings.theme.bgMedia || ''} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, bgMedia: e.target.value || null } }))}>
+              <option value="">{t('none')}</option>
+              {(library.media || []).map((m) => <option key={m.id} value={m.id}>{m.kind === 'video' ? '▶ ' : ''}{m.name}</option>)}
+            </select>
+          </label>
+          <label className="swatch">{t('darken')}
+            <input type="range" min="0" max="0.8" step="0.05" value={settings.theme.dim ?? 0.45} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, dim: +e.target.value } }))} style={{ flex: 1, height: 'auto' }} />
+          </label>
+          <div className="media-grid">
+            {(library.media || []).map((m) => (
+              <div key={m.id} className={'media-card' + (settings.theme.bgMedia === m.id ? ' is-bg' : '')}>
+                <div className="media-thumb">
+                  {m.kind === 'video' ? <video src={api.media.url(m.file) + '#t=1'} muted preload="metadata" /> : <img src={api.media.url(m.file)} alt="" />}
+                  <span className="badge">{m.kind === 'video' ? 'VIDEO' : 'PICTURE'}</span>
+                </div>
+                <div className="media-side">
+                <div className="media-name" title={m.name}>{m.name}</div>
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => addItem({ type: 'media', refId: m.id, title: m.name }, true)}>{t('showNow')}</button>
+                  <button type="button" onClick={() => addItem({ type: 'media', refId: m.id, title: m.name })}>+</button>
+                  <button type="button" title={t('useAsBg')} onClick={() => setSettings((st) => ({ ...st, theme: { ...st.theme, bgMedia: st.theme.bgMedia === m.id ? null : m.id } }))}>{t('bgShort')}</button>
+                  <button type="button" aria-label={t('remove')} onClick={async () => {
+                    if (!confirm(`${t('remove')}: ${m.name}?`)) return;
+                    await api.media.remove(m.file);
+                    setLibrary((l) => ({ ...l, media: l.media.filter((x) => x.id !== m.id) }));
+                    if (settings.theme.bgMedia === m.id) setSettings((st) => ({ ...st, theme: { ...st.theme, bgMedia: null } }));
+                  }}>×</button>
+                </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

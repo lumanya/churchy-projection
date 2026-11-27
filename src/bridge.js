@@ -10,7 +10,9 @@ const stubs = {
   update: { status: async () => ({ state: 'idle' }), download: async () => true, install: async () => true, onStatus: noop },
   findEasyWorship: async () => null,
   findVideoPsalm: async () => null,
-  listen: { start: async () => false, stop: async () => true, audio: () => {}, onEvent: noop }
+  listen: { start: async () => false, stop: async () => true, audio: () => {}, onEvent: noop },
+  media: { import: async () => [], remove: async () => true, url: () => '' },
+  video: { report: () => {}, onProgress: noop }
 };
 
 function webBridge(pin) {
@@ -33,6 +35,7 @@ function webBridge(pin) {
         return () => { closed = true; es && es.close(); };
       }
     },
+    media: { import: async () => [], remove: async () => true, url: (file) => `/api/media/${encodeURIComponent(file)}?${q}` },
     command: (cmd) => fetch(`/api/command?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) })
   };
 }

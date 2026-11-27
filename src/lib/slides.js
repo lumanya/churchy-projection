@@ -3,7 +3,7 @@ import { getVerses, formatReference } from './bibleRef.js';
 
 // Builds the slides for one item in the order of service.
 // A slide is { label, text, sub?, ref? } — ref is the line shown at the bottom of the screen.
-export function slidesFor(item, { songs, notices, bibles, settings }) {
+export function slidesFor(item, { songs, notices, bibles, settings, media }) {
   if (!item) return [];
   if (item.type === 'song') {
     const song = songs.find((s) => s.id === item.refId);
@@ -30,6 +30,11 @@ export function slidesFor(item, { songs, notices, bibles, settings }) {
     if (!n) return [{ label: 'Missing notice', text: item.title }];
     const parts = String(n.body || '').split(/\n\s*---\s*\n/);
     return parts.map((p, i) => ({ label: parts.length > 1 ? `Slide ${i + 1}` : 'Notice', title: n.title, text: p.trim() }));
+  }
+  if (item.type === 'media') {
+    const m = (media || []).find((x) => x.id === item.refId);
+    if (!m) return [{ label: 'Missing picture or video', text: item.title }];
+    return [{ label: m.kind === 'video' ? 'Video' : 'Picture', text: '', media: { file: m.file, kind: m.kind, name: m.name } }];
   }
   if (item.type === 'text') {
     return [{ label: 'Text', text: item.title }];

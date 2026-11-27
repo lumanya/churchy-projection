@@ -12,6 +12,8 @@ import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
 import { buildSongIndex, identifySong, followSong } from '../lib/songMatch.js';
 import { useMicrophone, listMicrophones } from './useMicrophone.js';
 
+const fmtTime = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
 export default function Operator() {
   const [ready, setReady] = useState(false);
   const [library, setLibrary] = useState(null);
@@ -45,6 +47,8 @@ export default function Operator() {
   const [mics, setMics] = useState([]);
   const listenRef = useRef(null);
   const [songSuggestion, setSongSuggestion] = useState(null);
+  const [video, setVideo] = useState({ playing: true, loop: false, volume: 1, restart: 0 });
+  const [videoProgress, setVideoProgress] = useState(null);
   const [followNote, setFollowNote] = useState('');
   const followRef = useRef({ lastMoveAt: 0, left: null });
   const searchRef = useRef(null);
@@ -57,6 +61,7 @@ export default function Operator() {
       const saved = await api.store.load();
       const lib = saved.library || defaultLibrary();
       if (!lib.currentServiceId) lib.currentServiceId = lib.services[0]?.id;
+      if (!Array.isArray(lib.media)) lib.media = [];
       const set = { ...defaultSettings(), ...(saved.settings || {}) };
       setLibrary(lib);
       setSettings(set);
@@ -77,7 +82,8 @@ export default function Operator() {
     const off5 = api.update.onStatus(setUpdate);
     const off6 = api.remote.onCommand((c) => commandRef.current && commandRef.current(c));
     const off7 = api.listen.onEvent((m) => listenRef.current && listenRef.current(m));
-    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); };
+    const off8 = api.video.onProgress(setVideoProgress);
+    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); off8(); };
   }, []);
 
   // ---------- load the Bibles we need ----------
@@ -107,8 +113,19 @@ export default function Operator() {
 
   const service = library?.services.find((s) => s.id === library.currentServiceId) || library?.services[0];
   const items = service?.items || [];
-  const ctx = useMemo(() => ({ songs: library?.songs || [], notices: library?.notices || [], bibles, settings: settings || {} }), [library, bibles, settings]);
-  const slidesOf = useCallback((item) => slidesFor(item, ctx), [ctx]);
+  const ctx = useMemo(() => ({ songs: library?.songs || [], notices: library?.notices || [], media: library?.media || [], bibles, settings: settings || {} }), [library, bibles, settings]);
+  // the background for an item: its own choice, or the default one (none for pictures and videos)
+  const bgFor = useCallback((item) => {
+    if (!item || item.type === 'media') return null;
+    const id = item.bg !== undefined ? item.bg : settings?.theme?.bgMedia;
+    if (!id || id === 'none') return null;
+    const m = (library?.media || []).find((x) => x.id === id);
+    return m ? { file: m.file, kind: m.kind } : null;
+  }, [library?.media, settings?.theme?.bgMedia]);
+  const slidesOf = useCallback((item) => {
+    const bg = bgFor(item);
+    return slidesFor(item, ctx).map((sl) => (sl.media || !bg ? sl : { ...sl, bg }));
+  }, [ctx, bgFor]);
   const item = items[selected];
   const slides = useMemo(() => slidesOf(item), [item, slidesOf]);
 
@@ -135,12 +152,20 @@ export default function Operator() {
     if (!settings) return;
     api.live.set({
       slide: liveSlide, next: nextSlide, black, message: messageOn ? message : '', theme: settings.theme,
-      stageMessage, timer, now: Date.now(),
+      stageMessage, timer, now: Date.now(), video,
       service: { name: service?.name, items: items.map((i) => ({ title: i.title, type: i.type })) },
       liveItem: liveItemIndex, liveIndex: live && !live.custom ? live.index : -1,
       slides: liveSlides.map((x) => ({ label: x.label, text: x.text.length > 140 ? x.text.slice(0, 140) + '…' : x.text }))
     });
-  }, [liveSlide, nextSlide, black, message, messageOn, settings?.theme, stageMessage, timer, items, liveItemIndex, liveSlides, live]);
+  }, [liveSlide, nextSlide, black, message, messageOn, settings?.theme, stageMessage, timer, items, liveItemIndex, liveSlides, live, video]);
+
+  // a new video starts from the beginning, playing
+  const liveVideoFile = liveSlide && liveSlide.media && liveSlide.media.kind === 'video' ? liveSlide.media.file : null;
+  useEffect(() => {
+    if (!liveVideoFile) return;
+    setVideo((v) => ({ playing: true, loop: false, volume: v.volume, restart: 0 }));
+    setVideoProgress(null);
+  }, [liveVideoFile]);
 
   // ---------- QR code for the phone remote ----------
   useEffect(() => {
@@ -282,6 +307,8 @@ export default function Operator() {
     else if (c.type === 'verse' && typeof c.text === 'string') showVerseText(c.text.slice(0, 60));
     else if (c.type === 'stageMessage' && typeof c.text === 'string') { setStageMessage(c.text.slice(0, 200)); setStageDraft(c.text.slice(0, 200)); }
     else if (c.type === 'timer' && ['start', 'pause', 'reset'].includes(c.action)) timerAction(c.action);
+    else if (c.type === 'videoToggle') setVideo((v) => ({ ...v, playing: !v.playing }));
+    else if (c.type === 'videoRestart') setVideo((v) => ({ ...v, playing: true, restart: Date.now() }));
   };
 
   // ---------- keyboard: works with presentation clickers too (they send Page Up / Page Down) ----------
@@ -419,7 +446,7 @@ export default function Operator() {
               <div key={it.id} className={'svc-item' + (i === selected ? ' on' : '') + (live && live.itemId === it.id ? ' is-live' : '')}>
                 <button type="button" className="svc-main" onClick={() => setSelected(i)}>
                   <span className="mono muted">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="svc-text"><span>{it.title}</span><span className="muted small">{t(it.type === 'bible' ? 'bible' : it.type === 'song' ? 'songs' : it.type === 'notice' ? 'notices' : 'text')}</span></span>
+                  <span className="svc-text"><span>{it.title}</span><span className="muted small">{t(it.type === 'bible' ? 'bible' : it.type === 'song' ? 'songs' : it.type === 'notice' ? 'notices' : it.type === 'media' ? 'media' : 'text')}</span></span>
                 </button>
                 <span className="svc-tools">
                   <button type="button" aria-label={t('moveUp')} onClick={() => i > 0 && updateService((l) => { const c = [...l]; [c[i - 1], c[i]] = [c[i], c[i - 1]]; return c; })}>↑</button>
@@ -439,6 +466,18 @@ export default function Operator() {
         <section className="col-mid" aria-label="Slides">
           <div className="mid-head">
             <h2>{item ? item.title : '—'}</h2>
+            {item && item.type !== 'media' && (library.media || []).length > 0 && (
+              <label className="swatch">{t('background')}
+                <select className="bg-pick" value={item.bg === undefined ? '' : item.bg} onChange={(e) => {
+                  const v = e.target.value;
+                  updateService((list) => list.map((x) => (x.id === item.id ? { ...x, bg: v === '' ? undefined : v } : x)));
+                }}>
+                  <option value="">{t('defaultBg')}</option>
+                  <option value="none">{t('none')}</option>
+                  {library.media.map((m) => <option key={m.id} value={m.id}>{m.kind === 'video' ? '▶ ' : ''}{m.name}</option>)}
+                </select>
+              </label>
+            )}
             <span className="muted small">{item ? t('clickToSend') : t('emptySlides')}</span>
           </div>
           <div className="slides">
@@ -458,6 +497,24 @@ export default function Operator() {
           <div>
             <div className="mon-head"><strong>{t('live')}</strong>{liveSlide && !black && <span className="onair">{t('onAir')}</span>}</div>
             <Mini slide={black ? null : liveSlide} theme={settings.theme} live message={messageOn ? message : ''} />
+            {liveVideoFile && (
+              <div className="video-ctl">
+                <div className="row">
+                  <button type="button" id="video-toggle" className={video.playing ? '' : 'primary'} onClick={() => setVideo((v) => ({ ...v, playing: !v.playing }))}>{video.playing ? '❚❚ ' + t('pause') : '▶ ' + t('play')}</button>
+                  <button type="button" onClick={() => setVideo((v) => ({ ...v, playing: true, restart: Date.now() }))}>⟲ {t('restart')}</button>
+                  <label className="swatch"><input type="checkbox" checked={video.loop} onChange={(e) => setVideo((v) => ({ ...v, loop: e.target.checked }))} /> {t('loop')}</label>
+                </div>
+                <label className="swatch">{t('volume')}
+                  <input type="range" min="0" max="1" step="0.05" value={video.volume} onChange={(e) => setVideo((v) => ({ ...v, volume: +e.target.value }))} style={{ flex: 1, height: 'auto' }} />
+                </label>
+                {videoProgress && videoProgress.file === liveVideoFile && videoProgress.duration > 0 && (
+                  <>
+                    <div className="progress"><span style={{ width: `${Math.min(100, (videoProgress.current / videoProgress.duration) * 100)}%` }} /></div>
+                    <div className="video-time" id="video-time">{fmtTime(videoProgress.current)} / {fmtTime(videoProgress.duration)}{videoProgress.ended ? ' · ' + t('ended') : ''}</div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <div className="mon-head"><strong className="muted">{t('next')}</strong></div>
