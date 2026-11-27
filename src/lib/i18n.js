@@ -2,6 +2,7 @@
 const T = {
   en: {
     needInternet: 'Could not download the speech model. Connect this computer to the internet once (about 80 MB), then turn the verse finder on again. After that it works offline.',
+    swahiliTip: 'For Kiswahili sermons choose Better accuracy. Swahili recognition is new: please tell ChurchyCodes how well it works in your church.',
     listen: 'Listen', verseFinder: 'Verse finder', listening: 'listening', loadingModel: 'Starting…', downloadingModel: 'Downloading speech model',
     listenError: 'Problem — see Listen tab', heard: 'Heard', noVerseYet: 'When the preacher says a verse (for example “John three sixteen” or “Yohana sura ya tatu mstari wa kumi na sita”), it appears here. You decide whether to show it.',
     listenOn: 'Verse finder on', listenOff: 'Verse finder off', listenDesktopOnly: 'Listening works in the Mwanga desktop app.',
@@ -43,6 +44,7 @@ const T = {
   },
   sw: {
     needInternet: 'Imeshindikana kupakua modeli ya sauti. Unganisha kompyuta hii na intaneti mara moja (takriban MB 80), kisha washa kitafuta mistari tena. Baada ya hapo kinafanya kazi bila intaneti.',
+    swahiliTip: 'Kwa mahubiri ya Kiswahili chagua Usahihi: Bora zaidi. Utambuzi wa Kiswahili ni mpya: tafadhali iambie ChurchyCodes unavyofanya kazi kanisani kwenu.',
     listen: 'Sikiliza', verseFinder: 'Kitafuta mistari', listening: 'inasikiliza', loadingModel: 'Inaanza…', downloadingModel: 'Inapakua modeli ya sauti',
     listenError: 'Tatizo — tazama kichupo cha Sikiliza', heard: 'Imesikika', noVerseYet: 'Mhubiri akitaja mstari (mf. “Yohana sura ya tatu mstari wa kumi na sita”), utaonekana hapa. Wewe ndiye unaamua kuuonyesha.',
     listenOn: 'Kitafuta mistari kimewashwa', listenOff: 'Kitafuta mistari kimezimwa', listenDesktopOnly: 'Kusikiliza kunafanya kazi kwenye programu ya Mwanga ya kompyuta.',

@@ -549,6 +549,7 @@ export default function Operator() {
                   <option value="better">{t('qualityBetter')}</option>
                 </select>
               </label>
+              {(settings.listenLang || 'auto') !== 'en' && (settings.listenQuality || 'fast') === 'fast' && <p className="accent small" style={{ margin: 0 }}>{t('swahiliTip')}</p>}
               {listenStatus.state === 'downloading' && <div className="meter"><span style={{ width: `${listenStatus.percent || 0}%` }} /></div>}
               {listenStatus.state === 'error' && <p className="accent small" style={{ margin: 0 }}>{listenStatus.message}</p>}
               <p className="muted small" style={{ margin: 0 }}>{t('listenPrivacy')}</p>

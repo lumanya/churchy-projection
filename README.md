@@ -14,6 +14,14 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.3: verse finder
+
+Mwanga listens to the sermon and suggests the Bible verses the preacher mentions — "John chapter three verse sixteen", "Yohana sura ya tatu mstari wa kumi na sita", "Zaburi ishirini na tatu". The operator presses **Show** (or **V**); nothing goes on screen by itself. Right panel → **Listen**.
+
+- Speech recognition (Whisper) runs on the church PC in its own process. Audio never leaves the computer. The model downloads once: about 80 MB (Fast) or 250 MB (Better).
+- English works well with Fast. For Swahili choose Better; it still needs testing with real preachers.
+- The GitHub check `listen` speaks test sentences with a computer voice and runs the real model on them (`node scripts/listen-smoke.mjs fast|better`).
+
 ## New in 0.2
 
 - **Preacher's screen**: a third screen (or a tablet) showing the slide now and next, the clock, a service timer (count up or count down with warnings) and messages from the operator ("5 minutes left"). Right panel → **Preacher**.
