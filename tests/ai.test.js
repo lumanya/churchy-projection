@@ -34,6 +34,13 @@ describe('Ask AI services', () => {
     expect(body(r).max_tokens).toBeGreaterThan(0);
   });
 
+  it('asks Groq at its OpenAI-compatible address', () => {
+    const r = AI.verseRequest({ provider: 'groq' }, 'gsk_1', 'x');
+    expect(r.url).toBe('https://api.groq.com/openai/v1/chat/completions');
+    expect(r.init.headers.authorization).toBe('Bearer gsk_1');
+    expect(body(r).model).toBe('openai/gpt-oss-120b');
+  });
+
   it('uses the address typed for another service, with or without a key', () => {
     const r = AI.verseRequest({ provider: 'custom', baseUrl: 'localhost:11434/v1/', model: 'llama3.2' }, '', 'x');
     expect(r.url).toBe('http://localhost:11434/v1/chat/completions');
@@ -77,9 +84,14 @@ describe('Ask AI services', () => {
     const openai = AI.modelList('openai', { data: [{ id: 'gpt-6.2-astra' }, { id: 'text-embedding-3-small' }, { id: 'gpt-6-luna' }, { id: 'whisper-1' }] });
     expect(openai.models).toEqual(['gpt-6-luna', 'gpt-6.2-astra']);
     expect(openai.suggested).toBe('gpt-6-luna');
-    const gemini = AI.modelList('gemini', { data: [{ id: 'models/gemini-4-pro' }, { id: 'models/gemini-4-flash' }, { id: 'models/gemini-embedding-2' }] });
-    expect(gemini.models).toEqual(['gemini-4-flash', 'gemini-4-pro']);
-    expect(gemini.suggested).toBe('gemini-4-flash');
+    // the free-tier Gemini model, even when a newer paid-only one is listed
+    const gemini = AI.modelList('gemini', { data: [{ id: 'models/gemini-3.8-flash' }, { id: 'models/gemini-3.5-flash' }, { id: 'models/gemini-embedding-2' }] });
+    expect(gemini.models).toEqual(['gemini-3.5-flash', 'gemini-3.8-flash']);
+    expect(gemini.suggested).toBe('gemini-3.5-flash');
+    expect(AI.modelList('gemini', { data: [{ id: 'models/gemini-3.1-flash-lite' }, { id: 'models/gemini-3.8-flash' }] }).suggested).toBe('gemini-3.1-flash-lite');
+    const groq = AI.modelList('groq', { data: [{ id: 'whisper-large-v3' }, { id: 'meta-llama/llama-prompt-guard-2-86m' }, { id: 'openai/gpt-oss-120b' }, { id: 'llama-3.3-70b-versatile' }] });
+    expect(groq.models).toEqual(['llama-3.3-70b-versatile', 'openai/gpt-oss-120b']);
+    expect(groq.suggested).toBe('openai/gpt-oss-120b');
     expect(AI.modelList('anthropic', { data: [{ id: 'claude-opus-5-5' }, { id: 'claude-haiku-6' }] }).suggested).toBe('claude-haiku-6');
     expect(AI.modelsRequest({ provider: 'openai' }, 'k').url).toBe('https://api.openai.com/v1/models');
   });

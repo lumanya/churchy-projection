@@ -13,8 +13,13 @@ const PROVIDERS = {
     model: 'gpt-6-luna', prefer: [/luna/i, /nano/i, /mini/i], keyUrl: 'https://platform.openai.com/api-keys'
   },
   gemini: {
-    name: 'Gemini (Google)', style: 'compat', base: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    model: 'gemini-3.8-flash', prefer: [/flash-lite/i, /flash/i], keyUrl: 'https://aistudio.google.com/apikey'
+    // gemini-3.5-flash is on Google's free tier (not every Gemini model is)
+    name: 'Gemini (Google) · free tier', style: 'compat', base: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    model: 'gemini-3.5-flash', prefer: [/^gemini-3\.5-flash$/i, /^gemini-3\.1-flash-lite$/i, /^gemini-2\.5-flash$/i], keyUrl: 'https://aistudio.google.com/apikey'
+  },
+  groq: {
+    name: 'Groq · free tier', style: 'compat', base: 'https://api.groq.com/openai/v1',
+    model: 'openai/gpt-oss-120b', prefer: [/gpt-oss-120b/i, /llama-3\.3-70b/i], keyUrl: 'https://console.groq.com/keys'
   },
   // OpenRouter, Groq, DeepSeek, Mistral… or a model running on this computer with Ollama or LM Studio
   custom: { name: 'Other (OpenAI-compatible)', style: 'compat', base: '', model: '', prefer: [], keyUrl: '', keyOptional: true }
@@ -101,7 +106,7 @@ function errorKind(status, bodyText) {
 }
 
 // the model list a service returns, with chat models only, the suggested one first
-const NOT_CHAT = /embed|whisper|tts|transcri|dall-e|image|audio|realtime|moderation|search|babbage|davinci|sora|speech|veo|imagen|aqa|computer-use|codex/i;
+const NOT_CHAT = /embed|whisper|tts|guard|orpheus|playai|transcri|dall-e|image|audio|realtime|moderation|search|babbage|davinci|sora|speech|veo|imagen|aqa|computer-use|codex/i;
 function modelList(id, data) {
   const p = PROVIDERS[id] || PROVIDERS.custom;
   const ids = ((data && (data.data || data.models)) || []).map((m) => String((m && (m.id || m.name)) || '').replace(/^models\//, '')).filter(Boolean);
