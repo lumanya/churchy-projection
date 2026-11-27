@@ -9,6 +9,7 @@ const stubs = {
   remote: { start: async () => ({ on: false, urls: [] }), stop: async () => ({ on: false, urls: [] }), info: async () => ({ on: false, urls: [] }), qr: async () => '', onInfo: noop, onCommand: noop },
   update: { status: async () => ({ state: 'idle' }), download: async () => true, install: async () => true, onStatus: noop },
   findEasyWorship: async () => null,
+  findVideoPsalm: async () => null,
   listen: { start: async () => false, stop: async () => true, audio: () => {}, onEvent: noop }
 };
 

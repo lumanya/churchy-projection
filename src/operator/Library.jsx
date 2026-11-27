@@ -5,7 +5,7 @@ import { formatReference } from '../lib/bibleRef.js';
 import { parseOpenLyrics, parsePlainSong } from '../lib/songs.js';
 import { importBibleFiles } from '../lib/bibleImport.js';
 import { uid } from '../lib/defaults.js';
-import { easyWorshipSongs, parseVideoPsalm, pickEasyWorshipFiles } from '../lib/importers.js';
+import { easyWorshipSongs, parseVideoPsalmFile, LockedBookError, pickEasyWorshipFiles } from '../lib/importers.js';
 
 export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash }) {
   const [tab, setTab] = useState('songs');
@@ -56,12 +56,18 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
   };
 
   const importVideoPsalm = async () => {
-    const files = await api.openFiles([{ name: 'VideoPsalm', extensions: ['json', 'txt'] }]);
+    // VideoPsalm keeps song books in a known folder; if it isn't there, the church chooses the files
+    let files = await api.findVideoPsalm();
+    if (!files || !files.length) files = await api.openFiles([{ name: 'VideoPsalm', extensions: ['vpc', 'json'] }], true);
+    if (!files || !files.length) return;
+    const { unzipSync } = await import('fflate');
     const all = [];
+    const notes = [];
     for (const f of files) {
-      try { all.push(...parseVideoPsalm(f.text)); } catch (e) { flash(`${t('importFailed')}: ${f.name}`); }
+      try { all.push(...parseVideoPsalmFile(f.name, f.data, unzipSync)); } catch (e) { notes.push(e instanceof LockedBookError ? e.message : `${f.name}: ${t('importFailed')}`); }
     }
     if (all.length) addSongs(all, 'VideoPsalm');
+    if (notes.length) setTimeout(() => flash(notes.join(' · ')), all.length ? 3000 : 0);
   };
 
   const importBible = async () => {

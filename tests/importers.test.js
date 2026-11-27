@@ -3,7 +3,7 @@ import initSqlJs from 'sql.js';
 import { zipSync } from 'fflate';
 import { unzipSync } from 'fflate';
 import { rtfToText } from '../src/lib/rtf.js';
-import { normaliseLabelledLyrics, easyWorshipSongs, parseVideoPsalm, pickEasyWorshipFiles } from '../src/lib/importers.js';
+import { normaliseLabelledLyrics, easyWorshipSongs, parseVideoPsalm, parseVideoPsalmFile, LockedBookError, pickEasyWorshipFiles } from '../src/lib/importers.js';
 import { parseLyrics } from '../src/lib/songs.js';
 import { formatTimer } from '../src/stage/timer.js';
 
@@ -52,14 +52,27 @@ describe('EasyWorship', async () => {
 });
 
 describe('VideoPsalm', () => {
-  it('reads song books, including unquoted keys', () => {
-    const file = '{Songs:[{ID:7,Text:"Bwana ni mchungaji",Verses:[{Text:"Bwana ni mchungaji wangu\\nsitapungukiwa"},{Tag:1,Text:"Haleluya"}]}],Text:"Nyimbo za Kristo"}';
-    const songs = parseVideoPsalm(file);
-    expect(songs).toHaveLength(1);
-    expect(songs[0]).toMatchObject({ title: 'Bwana ni mchungaji', book: 'Nyimbo za Kristo', number: '7' });
+  // The real format: unquoted field names, real line breaks inside lyrics, no chorus marks.
+  const book = '{Songs:[{Guid:"a1",Verses:[{\nText:"Bwana ni mchungaji wangu\nsitapungukiwa"},{ID:2,\nText:"Haleluya haleluya\nYesu ni Bwana"},{ID:3,\nText:"Ananiongoza njiani\nkwa upendo"},{ID:4,\nText:"Haleluya haleluya\nYesu ni Bwana"}],Style:{},Text:"Bwana ni mchungaji"},{Guid:"a2",Verses:[],Text:"New song"}],Guid:"b",Style:{Body:{FontSize:200}},Text:"Nyimbo za Kanisa"}';
+
+  it('reads relaxed JSON with line breaks and finds the chorus', () => {
+    const songs = parseVideoPsalm(book);
+    expect(songs).toHaveLength(1); // the empty "New song" is skipped
+    expect(songs[0]).toMatchObject({ title: 'Bwana ni mchungaji', book: 'Nyimbo za Kanisa', number: '1' });
     const parts = parseLyrics(songs[0].lyrics);
-    expect(parts.map((p) => p.label)).toEqual(['Verse 1', 'Chorus']);
+    expect(parts.map((p) => p.label)).toEqual(['Verse 1', 'Chorus', 'Verse 2', 'Chorus']);
     expect(parts[0].text).toBe('Bwana ni mchungaji wangu\nsitapungukiwa');
+  });
+
+  it('opens .vpc song books (a zip with one JSON file)', () => {
+    const vpc = zipSync({ 'Nyimbo.json': new TextEncoder().encode(book) });
+    expect(parseVideoPsalmFile('Nyimbo.vpc', vpc, unzipSync)).toHaveLength(1);
+  });
+
+  it('refuses books locked by their publisher', () => {
+    const vpc = zipSync({ 'Locked.json': new TextEncoder().encode(book) });
+    vpc[6] |= 1; // the zip's "encrypted" flag, as in published VideoPsalm books
+    expect(() => parseVideoPsalmFile('Locked.vpc', vpc, unzipSync)).toThrow(LockedBookError);
   });
 });
 

@@ -49,34 +49,73 @@ export function easyWorshipSongs(openDb, songsBytes, wordsBytes) {
 }
 
 // ---------- VideoPsalm ----------
-// A song book is a .json file, sometimes with unquoted keys: { Songs: [ { Text: "title", Verses: [ { Text: "…" } ] } ], Text: "book name" }
-export function parseVideoPsalm(text) {
-  let src = String(text).replace(/^﻿/, '');
-  let data;
-  try { data = JSON.parse(src); } catch (_) {
-    src = src.replace(/\r?\n/g, ' ').replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
-    data = JSON.parse(src);
+// A song book is a .vpc file: a zip holding one .json file. The JSON is "relaxed": field names have no quotes
+// and line breaks inside lyrics are real line breaks. Published books (Tenzi za Rohoni and others) are encrypted
+// by their publishers; Mwanga does not open those.
+//   { Songs: [ { Text: "title", Verses: [ { ID: 2, Text: "line\nline" } ], Guid, Style } ], Text: "book name" }
+
+// Turns VideoPsalm's relaxed JSON into strict JSON.
+export function relaxedJSON(text) {
+  let out = '';
+  let inStr = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (c === '\\') { out += c + (text[i + 1] ?? ''); i++; continue; }
+      if (c === '"') inStr = false;
+      if (c === '\r') continue;
+      if (c === '\n') { out += '\\n'; continue; }
+      if (c === '\t') { out += '\\t'; continue; }
+      out += c;
+      continue;
+    }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (/[A-Za-z_]/.test(c) && /[{,\s]$|^$/.test(out.slice(-1))) {
+      const m = /^[A-Za-z_][A-Za-z0-9_]*(?=\s*:)/.exec(text.slice(i, i + 64));
+      if (m) { out += `"${m[0]}"`; i += m[0].length - 1; continue; }
+    }
+    out += c;
   }
-  const book = typeof data.Text === 'string' ? data.Text.trim() : 'VideoPsalm';
+  return out;
+}
+
+export function parseVideoPsalm(text) {
+  const src = String(text).replace(/^\uFEFF/, '');
+  let data;
+  try { data = JSON.parse(src); } catch (_) { data = JSON.parse(relaxedJSON(src)); }
+  const book = typeof data.Text === 'string' && data.Text.trim() ? data.Text.trim() : 'VideoPsalm';
   const songs = Array.isArray(data.Songs) ? data.Songs : Array.isArray(data) ? data : [];
   if (!songs.length) throw new Error('No songs found in this VideoPsalm file.');
   const out = [];
   songs.forEach((s, idx) => {
     const title = String(s.Text || s.Title || '').trim();
-    const verses = Array.isArray(s.Verses) ? s.Verses : [];
+    const verses = (Array.isArray(s.Verses) ? s.Verses : [])
+      .map((v) => String(v.Text || '').replace(/\\n/g, '\n').replace(/\r\n?/g, '\n').split('\n').map((l) => l.trim()).filter(Boolean).join('\n'))
+      .filter(Boolean);
+    if (!title || !verses.length) return;
+    // VideoPsalm does not mark choruses; a part that comes back word for word is the chorus
+    const counts = new Map();
+    verses.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
     let vn = 0;
-    const parts = verses.map((v) => {
-      const body = String(v.Text || '').replace(/\\n/g, '\n').replace(/\r\n?/g, '\n').split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
-      if (!body) return null;
-      const chorus = v.Tag === 1 || v.Tag === '1' || v.IsChorus === true || /chorus|refrain|kiitikio/i.test(String(v.Tag || ''));
-      const label = chorus ? 'Chorus' : `Verse ${++vn}`;
-      return `[${label}]\n${body}`;
-    }).filter(Boolean);
-    if (!title || !parts.length) return;
-    const number = s.Reference ?? s.Number ?? s.ID ?? idx + 1;
-    out.push({ title, book, number: String(number), lyrics: parts.join('\n\n') });
+    const parts = verses.map((v) => `[${counts.get(v) > 1 ? 'Chorus' : `Verse ${++vn}`}]\n${v}`);
+    out.push({ title, book, number: String(idx + 1), lyrics: parts.join('\n\n') });
   });
   return out;
+}
+
+export class LockedBookError extends Error {}
+
+// bytes of a .vpc file → songs. unzip: fflate's unzipSync.
+export function parseVideoPsalmFile(name, bytes, unzip) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const isZip = u8[0] === 0x50 && u8[1] === 0x4b;
+  if (!isZip) return parseVideoPsalm(new TextDecoder().decode(u8));
+  // bit 0 of the zip entry's flags means encrypted: a book locked by its publisher
+  if (u8[6] & 1) throw new LockedBookError(`${name} is locked by its publisher, so it can't be imported.`);
+  const files = unzip(u8);
+  const json = Object.keys(files).find((f) => /\.json$/i.test(f)) || Object.keys(files)[0];
+  if (!json) throw new Error(`${name} is empty.`);
+  return parseVideoPsalm(new TextDecoder().decode(files[json]));
 }
 
 // Finds Songs.db / SongWords.db inside an EasyWorship .ewsx export (a zip) or in a list of chosen files.

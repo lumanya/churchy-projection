@@ -63,5 +63,6 @@ contextBridge.exposeInMainWorld('mwanga', {
     onEvent: on('listen:event')
   },
   openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
-  findEasyWorship: () => ipcRenderer.invoke('easyworship:find')
+  findEasyWorship: () => ipcRenderer.invoke('easyworship:find'),
+  findVideoPsalm: () => ipcRenderer.invoke('videopsalm:find')
 });

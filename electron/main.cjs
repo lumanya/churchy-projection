@@ -379,6 +379,14 @@ ipcMain.handle('easyworship:find', () => {
   return { dir, songs: read('songs.db'), words: read('songwords.db') };
 });
 
+// VideoPsalm keeps its song books (.vpc) in the public Documents folder.
+ipcMain.handle('videopsalm:find', () => {
+  const dir = path.join(process.env.PUBLIC || 'C:\\Users\\Public', 'Documents', 'VideoPsalm', 'SongBooks');
+  if (!fs.existsSync(dir)) return null;
+  return fs.readdirSync(dir).filter((f) => /\.vpc$/i.test(f)).slice(0, 100)
+    .map((f) => ({ name: f, data: fs.readFileSync(path.join(dir, f)) }));
+});
+
 // ---------- app ----------
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { if (operator) { operator.restore(); operator.focus(); } });
