@@ -36,6 +36,16 @@ jobs:
       # Pushes to main publish a GitHub Release named after the version in package.json (v0.2.0, …).
       # Every installed Mwanga sees a new version as an update. If that version is already released,
       # electron-builder leaves the release alone, so raise the version number to ship an update.
+      - name: Tag the version
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          V="v$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/$V" >/dev/null; then
+            echo "$V already tagged"
+          else
+            git tag "$V" && git push origin "$V"
+          fi
       - name: Build and publish release
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         run: npm run release:win
