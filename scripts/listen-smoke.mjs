@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createTranscriber } from '../electron/listener-core.mjs';
 import { findSpokenReferences } from '../src/lib/spokenRefs.js';
+import { buildSongIndex, identifySong } from '../src/lib/songMatch.js';
+import { defaultLibrary } from '../src/lib/defaults.js';
 
 const quality = process.argv[2] || 'fast';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mwanga-listen-'));
@@ -43,6 +45,29 @@ for (const [i, c] of cases.entries()) {
   console.log(`     said:  ${c.text}`);
   console.log(`     heard: ${heard}`);
   console.log(`     found: ${refs.join(', ') || '(none)'}  expected ${c.expect}`);
+  if (!ok && c.required) failed++;
+}
+// Songs: the computer voice reads lines of a hymn; Mwanga must say which library song it is.
+const library = defaultLibrary();
+const extra = [
+  { id: 'holy', title: 'Holy, Holy, Holy', lyrics: '[Verse 1]\nHoly holy holy Lord God Almighty\nEarly in the morning our song shall rise to thee' },
+  { id: 'friend', title: 'What a Friend We Have in Jesus', lyrics: '[Verse 1]\nWhat a friend we have in Jesus\nAll our sins and griefs to bear' }
+];
+const index = buildSongIndex([...library.songs, ...extra]);
+const songCases = [
+  { lang: 'en', voice: 'en', text: 'How precious did that grace appear, the hour I first believed.', expect: 'Amazing Grace', required: true },
+  { lang: 'en', voice: 'en', text: 'What a friend we have in Jesus, all our sins and griefs to bear.', expect: 'What a Friend We Have in Jesus', required: true },
+  { lang: 'sw', voice: 'sw', text: 'Tunakusifu, tunakuabudu, wewe ni mwema milele.', expect: 'Asante Bwana (example)', required: false }
+];
+for (const [i, c] of songCases.entries()) {
+  const audio = speak(c.text, c.voice, `song${i}`);
+  const heard = await asr.transcribe(audio, c.lang);
+  const g = identifySong(heard, index);
+  const ok = g && g.title === c.expect;
+  console.log(`${ok ? 'PASS' : c.required ? 'FAIL' : 'MISS'} [song ${c.lang}]`);
+  console.log(`     said:  ${c.text}`);
+  console.log(`     heard: ${heard}`);
+  console.log(`     song:  ${g ? g.title + ' (slide ' + (g.slide + 1) + ')' : '(none)'}  expected ${c.expect}`);
   if (!ok && c.required) failed++;
 }
 // Computer-generated Swahili is much harder to understand than a real preacher; a miss there is reported, not fatal.

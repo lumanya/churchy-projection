@@ -422,6 +422,21 @@ async function screenshotRun(dir) {
   const after = await output.webContents.executeJavaScript('document.body.innerText');
   fs.writeFileSync(path.join(dir, 'listen-check.json'), JSON.stringify({ before, after }));
   await snap(output, 'output-from-listen.png');
+  // song follower: recognise a song from sung words, then follow along
+  const outText = () => output.webContents.executeJavaScript('document.body.innerText');
+  send(operator, 'listen:event', { type: 'text', text: 'how precious did that grace appear the hour I first believed', ms: 900 });
+  await wait(700);
+  await snap(operator, 'operator-song-suggest.png');
+  await js(`document.querySelector('#song-suggest-show').click()`); await wait(800);
+  const songShown = await outText();
+  await js(`document.querySelectorAll('.svc-main')[1].click()`); await wait(200);
+  await js(`document.querySelectorAll('.slide')[0].click()`); await wait(3500); // the follower waits after the operator moves
+  const followBefore = await outText();
+  send(operator, 'listen:event', { type: 'text', text: 'asante bwana kwa siku hii umetulinda usiku wote', ms: 900 });
+  await wait(800);
+  const followAfter = await outText();
+  await snap(operator, 'operator-following.png');
+  fs.writeFileSync(path.join(dir, 'song-check.json'), JSON.stringify({ songShown, followBefore, followAfter }, null, 1));
   // start the real speech engine once and record its first message (proves it loads in this build)
   process.env.MWANGA_LISTEN_REAL = '1';
   const probe = await new Promise((resolve) => {

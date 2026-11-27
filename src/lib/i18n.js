@@ -1,12 +1,14 @@
 // Interface text. English is the default; Swahili is one click away.
 const T = {
   en: {
-    needInternet: 'Could not download the speech model. Connect this computer to the internet once (about 80 MB), then turn the verse finder on again. After that it works offline.',
+    needInternet: 'Could not download the speech model. Connect this computer to the internet once (about 80 MB), then turn listening on again. After that it works offline.',
     swahiliTip: 'For Kiswahili sermons choose Better accuracy. Swahili recognition is new: please tell ChurchyCodes how well it works in your church.',
-    listen: 'Listen', verseFinder: 'Verse finder', listening: 'listening', loadingModel: 'Starting…', downloadingModel: 'Downloading speech model',
-    listenError: 'Problem — see Listen tab', heard: 'Heard', noVerseYet: 'When the preacher says a verse (for example “John three sixteen” or “Yohana sura ya tatu mstari wa kumi na sita”), it appears here. You decide whether to show it.',
-    listenOn: 'Verse finder on', listenOff: 'Verse finder off', listenDesktopOnly: 'Listening works in the Mwanga desktop app.',
-    listenHelp: 'Mwanga listens to the sermon and suggests the Bible verses the preacher mentions. Nothing is shown until you press Show (or V).',
+    followed: 'moved to', following: 'Following', findVerses: 'Suggest Bible verses the preacher mentions',
+    recogniseSongs: 'Recognise songs from the library when they start', autoFollow: 'Follow the live song: move to the next slide as it is sung (arrow keys always take over)',
+    listen: 'Listen', verseFinder: 'Listening', listening: 'listening', loadingModel: 'Starting…', downloadingModel: 'Downloading speech model',
+    listenError: 'Problem — see Listen tab', heard: 'Heard', noVerseYet: 'Verses the preacher mentions and songs from your library appear here as they are heard. You decide what to show.',
+    listenOn: 'Listening on', listenOff: 'Listening off', listenDesktopOnly: 'Listening works in the Mwanga desktop app.',
+    listenHelp: 'Mwanga listens to the sermon and the singing. It suggests the Bible verses the preacher mentions and the songs from your library as they start, and can follow a song as it is sung. Verses and new songs only go on screen when you press Show.',
     preacherLanguage: 'Preacher’s language', autoDetect: 'Detect automatically', microphone: 'Microphone', defaultMic: 'Default microphone',
     accuracy: 'Accuracy', qualityFast: 'Fast (most computers) · about 80 MB download', qualityBetter: 'Better (newer computers) · about 250 MB download',
     listenPrivacy: 'Speech is turned into text on this computer and is never sent anywhere. The internet is used once, to download the speech model. For best results, connect the sound desk to the computer’s microphone input.',
@@ -43,12 +45,14 @@ const T = {
     importedBible: 'Bible added', importFailed: 'Could not import', minutes: 'items'
   },
   sw: {
-    needInternet: 'Imeshindikana kupakua modeli ya sauti. Unganisha kompyuta hii na intaneti mara moja (takriban MB 80), kisha washa kitafuta mistari tena. Baada ya hapo kinafanya kazi bila intaneti.',
+    needInternet: 'Imeshindikana kupakua modeli ya sauti. Unganisha kompyuta hii na intaneti mara moja (takriban MB 80), kisha washa kusikiliza tena. Baada ya hapo kinafanya kazi bila intaneti.',
     swahiliTip: 'Kwa mahubiri ya Kiswahili chagua Usahihi: Bora zaidi. Utambuzi wa Kiswahili ni mpya: tafadhali iambie ChurchyCodes unavyofanya kazi kanisani kwenu.',
-    listen: 'Sikiliza', verseFinder: 'Kitafuta mistari', listening: 'inasikiliza', loadingModel: 'Inaanza…', downloadingModel: 'Inapakua modeli ya sauti',
+    followed: 'imehamia', following: 'Inafuata', findVerses: 'Pendekeza mistari ya Biblia anayoitaja mhubiri',
+    recogniseSongs: 'Tambua nyimbo za maktaba zinapoanza', autoFollow: 'Fuata wimbo ulio hewani: hamia slaidi inayofuata inapoimbwa (vitufe vya mishale vinachukua udhibiti)',
+    listen: 'Sikiliza', verseFinder: 'Kusikiliza', listening: 'inasikiliza', loadingModel: 'Inaanza…', downloadingModel: 'Inapakua modeli ya sauti',
     listenError: 'Tatizo — tazama kichupo cha Sikiliza', heard: 'Imesikika', noVerseYet: 'Mhubiri akitaja mstari (mf. “Yohana sura ya tatu mstari wa kumi na sita”), utaonekana hapa. Wewe ndiye unaamua kuuonyesha.',
-    listenOn: 'Kitafuta mistari kimewashwa', listenOff: 'Kitafuta mistari kimezimwa', listenDesktopOnly: 'Kusikiliza kunafanya kazi kwenye programu ya Mwanga ya kompyuta.',
-    listenHelp: 'Mwanga inasikiliza mahubiri na kupendekeza mistari ya Biblia anayoitaja mhubiri. Hakuna kinachoonyeshwa hadi ubonyeze Onyesha (au V).',
+    listenOn: 'Kusikiliza kumewashwa', listenOff: 'Kusikiliza kumezimwa', listenDesktopOnly: 'Kusikiliza kunafanya kazi kwenye programu ya Mwanga ya kompyuta.',
+    listenHelp: 'Mwanga inasikiliza mahubiri na uimbaji. Inapendekeza mistari ya Biblia anayoitaja mhubiri na nyimbo za maktaba zinapoanza, na inaweza kufuata wimbo unapoimbwa. Mistari na nyimbo mpya zinaonyeshwa tu ukibonyeza Onyesha.',
     preacherLanguage: 'Lugha ya mhubiri', autoDetect: 'Tambua yenyewe', microphone: 'Kipaza sauti', defaultMic: 'Kipaza sauti cha kawaida',
     accuracy: 'Usahihi', qualityFast: 'Haraka (kompyuta nyingi) · takriban MB 80', qualityBetter: 'Bora zaidi (kompyuta mpya) · takriban MB 250',
     listenPrivacy: 'Sauti inageuzwa kuwa maandishi kwenye kompyuta hii na haitumwi popote. Intaneti inatumika mara moja tu kupakua modeli. Kwa matokeo bora, unganisha mixer ya sauti kwenye kompyuta.',

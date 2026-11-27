@@ -190,3 +190,6 @@ kbd.on-accent { color: var(--on-accent); border: 1px solid rgba(26,10,0,.4); bor
 .mic-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7BD88F; margin-right: 4px; vertical-align: middle; }
 .meter { height: 6px; background: var(--raise); border-radius: 3px; overflow: hidden; }
 .meter span { display: block; height: 100%; background: var(--accent); transition: width .1s linear; }
+.checks { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.checks label { display: flex; gap: 8px; align-items: flex-start; }
+.checks input { height: auto; margin-top: 3px; accent-color: var(--accent); }

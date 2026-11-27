@@ -9,6 +9,7 @@ import { SongEditor, NoticeEditor, ServiceEditor } from './Editors.jsx';
 import { Mini, Logo } from './Mini.jsx';
 import { formatTimer } from '../stage/timer.js';
 import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
+import { buildSongIndex, identifySong, followSong } from '../lib/songMatch.js';
 import { useMicrophone, listMicrophones } from './useMicrophone.js';
 
 export default function Operator() {
@@ -43,6 +44,9 @@ export default function Operator() {
   const [suggestions, setSuggestions] = useState([]);
   const [mics, setMics] = useState([]);
   const listenRef = useRef(null);
+  const [songSuggestion, setSongSuggestion] = useState(null);
+  const [followNote, setFollowNote] = useState('');
+  const followRef = useRef({ lastMoveAt: 0, left: null });
   const searchRef = useRef(null);
   const commandRef = useRef(null);
   const t = makeT(settings?.lang);
@@ -144,6 +148,8 @@ export default function Operator() {
     else setQr('');
   }, [remote.on, remote.urls[0]]);
 
+  const songIndex = useMemo(() => buildSongIndex(library?.songs || [], settings?.maxLines || 4), [library?.songs, settings?.maxLines]);
+
   // ---------- verse finder: microphone → speech engine → references ----------
   const { level: micLevel, error: micError } = useMicrophone({
     enabled: listenOn && listenStatus.state === 'ready',
@@ -163,6 +169,8 @@ export default function Operator() {
     else if (m.type === 'stopped') setListenStatus((st) => (st.state === 'error' ? st : { state: 'off' }));
     else if (m.type === 'text' && m.text) {
       setHeard(m.text);
+      if (settings.listenSongs !== false) onSongWords(m.text);
+      if (settings.listenVerses === false) return;
       const main = bibles[settings.mainBible];
       const refs = validReferences(findSpokenReferences(m.text), main);
       if (!refs.length) return;
@@ -180,6 +188,29 @@ export default function Operator() {
   };
   useEffect(() => { if (rightTab === 'listen') listMicrophones().then(setMics); }, [rightTab, listenStatus.state]);
 
+  // songs: follow the live song, and recognise a song from the library when one starts
+  const onSongWords = (text) => {
+    const liveIt = liveItemIndex >= 0 ? items[liveItemIndex] : null;
+    const liveSongId = liveIt && liveIt.type === 'song' ? liveIt.refId : null;
+    if (liveSongId && settings.autoFollow !== false && !black) {
+      const d = followSong(text, liveSlides, live.index, followRef.current);
+      if (d.move !== null && d.move !== live.index) {
+        const from = live.index;
+        goLive(liveItemIndex, d.move);
+        followRef.current = { lastMoveAt: Date.now(), left: from };
+        setFollowNote(`${t('followed')} ${liveSlides[d.move]?.label || ''}`);
+      }
+    }
+    const g = identifySong(text, songIndex);
+    if (g && g.songId !== liveSongId) setSongSuggestion({ ...g, at: Date.now() });
+  };
+  // a song suggestion is only useful for a minute
+  useEffect(() => {
+    if (!songSuggestion) return undefined;
+    const h = setTimeout(() => setSongSuggestion(null), 60000);
+    return () => clearTimeout(h);
+  }, [songSuggestion]);
+
   // the timer on this screen ticks while it runs
   useEffect(() => {
     if (!timer.running) return undefined;
@@ -194,6 +225,7 @@ export default function Operator() {
   const goLive = (itemIndex, slideIndex) => {
     const it = items[itemIndex];
     if (!it) return;
+    followRef.current = { lastMoveAt: Date.now(), left: null };
     setSelected(itemIndex);
     setLive({ itemId: it.id, index: slideIndex });
     setBlack(false);
@@ -208,14 +240,14 @@ export default function Operator() {
     if (dir < 0 && items[idx - 1]) { const prev = slidesOf(items[idx - 1]); return goLive(idx - 1, Math.max(prev.length - 1, 0)); }
   };
   const sameItem = (a, b) => a.type === b.type && (a.refId ? a.refId === b.refId : JSON.stringify(a.ref) === JSON.stringify(b.ref));
-  const addItem = (newItem, showNow) => {
+  const addItem = (newItem, showNow, slideIndex = 0) => {
     const existing = showNow ? items.findIndex((x) => sameItem(x, newItem)) : -1;
-    if (existing >= 0) { goLive(existing, 0); setQuery(''); return; }
+    if (existing >= 0) { goLive(existing, slideIndex); setQuery(''); return; }
     const it = { id: uid(), ...newItem };
     const pos = items.length;
     updateService((list) => [...list, it]);
     setSelected(pos);
-    if (showNow) setTimeout(() => { setLive({ itemId: it.id, index: 0 }); setBlack(false); }, 0);
+    if (showNow) setTimeout(() => { setLive({ itemId: it.id, index: slideIndex }); setBlack(false); }, 0);
     setQuery('');
   };
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
@@ -264,7 +296,7 @@ export default function Operator() {
       else if (e.key.toLowerCase() === 'c') setLive(null);
       else if (/^[1-9]$/.test(e.key) && slides[+e.key - 1]) goLive(selected, +e.key - 1);
       else if (e.key === 'Escape') setMessageOn(false);
-      else if (e.key.toLowerCase() === 'v' && suggestions[0]) showSuggestion(suggestions[0]);
+      else if (e.key.toLowerCase() === 'v' && openSuggestions[0]) showSuggestion(openSuggestions[0]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -291,6 +323,17 @@ export default function Operator() {
   if (!ready) return <div className="boot"><Logo size={40} /></div>;
 
   const timerView = formatTimer(timer);
+  // a verse already on screen is not suggested again
+  const liveRefKey = (() => {
+    const it = liveItemIndex >= 0 ? items[liveItemIndex] : null;
+    return it && it.type === 'bible' ? `${it.ref.book} ${it.ref.chapter}:${it.ref.from || ''}-${it.ref.to || ''}` : '';
+  })();
+  const openSuggestions = suggestions.filter((x) => x.key !== liveRefKey);
+  const showSongSuggestion = (sg) => {
+    if (!sg) return;
+    addItem({ type: 'song', refId: sg.songId, title: sg.title }, true, sg.slide);
+    setSongSuggestion(null);
+  };
   const showSuggestion = (sg) => sg && addItem({ type: 'bible', ref: { ...sg.ref, bibleId: settings.mainBible }, title: sg.title }, true);
   const toggleListen = async () => {
     if (listenOn) { setListenOn(false); setListenStatus({ state: 'off' }); await api.listen.stop(); return; }
@@ -433,12 +476,18 @@ export default function Operator() {
                 </span>
               </div>
               {heard && <div className="heard">{t('heard')}: “…{heard.slice(-120)}”</div>}
-              {suggestions[0] ? (
-                <button type="button" id="suggest-show" className="primary big" onClick={() => showSuggestion(suggestions[0])}>{t('show')} {suggestions[0].title} <kbd className="on-accent">V</kbd></button>
-              ) : <div className="muted small">{t('noVerseYet')}</div>}
-              {suggestions.length > 1 && (
+              {songSuggestion && (
+                <button type="button" id="song-suggest-show" className="primary big" onClick={() => showSongSuggestion(songSuggestion)}>♪ {t('show')} {songSuggestion.title}</button>
+              )}
+              {liveItemIndex >= 0 && items[liveItemIndex]?.type === 'song' && settings.autoFollow !== false && settings.listenSongs !== false && (
+                <div className="small muted">{t('following')} {items[liveItemIndex].title}{followNote ? ` · ${followNote}` : ''}</div>
+              )}
+              {openSuggestions[0] ? (
+                <button type="button" id="suggest-show" className="primary big" onClick={() => showSuggestion(openSuggestions[0])}>{t('show')} {openSuggestions[0].title} <kbd className="on-accent">V</kbd></button>
+              ) : (!songSuggestion && <div className="muted small">{t('noVerseYet')}</div>)}
+              {openSuggestions.length > 1 && (
                 <div className="row">
-                  {suggestions.slice(1, 5).map((sg) => <button key={sg.key} type="button" className="sm" onClick={() => showSuggestion(sg)}>{sg.title}</button>)}
+                  {openSuggestions.slice(1, 5).map((sg) => <button key={sg.key} type="button" className="sm" onClick={() => showSuggestion(sg)}>{sg.title}</button>)}
                 </div>
               )}
             </div>
@@ -528,6 +577,11 @@ export default function Operator() {
                 <button type="button" id="listen-toggle" className={listenOn ? '' : 'primary'} onClick={toggleListen}>{listenOn ? t('turnOff') : t('turnOn')}</button>
               </div>
               <p className="muted small" style={{ margin: 0 }}>{t('listenHelp')}</p>
+              <div className="checks">
+                <label><input type="checkbox" checked={settings.listenVerses !== false} onChange={(e) => setSetting({ listenVerses: e.target.checked })} /> {t('findVerses')}</label>
+                <label><input type="checkbox" checked={settings.listenSongs !== false} onChange={(e) => setSetting({ listenSongs: e.target.checked })} /> {t('recogniseSongs')}</label>
+                <label><input type="checkbox" id="auto-follow" checked={settings.autoFollow !== false} disabled={settings.listenSongs === false} onChange={(e) => setSetting({ autoFollow: e.target.checked })} /> {t('autoFollow')}</label>
+              </div>
               <label className="field"><span>{t('preacherLanguage')}</span>
                 <select value={settings.listenLang || 'auto'} onChange={(e) => setSetting({ listenLang: e.target.value })}>
                   <option value="sw">Kiswahili</option>
