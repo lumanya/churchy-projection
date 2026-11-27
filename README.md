@@ -14,6 +14,14 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.4: song follower
+
+While listening is on, Mwanga also listens to the singing:
+- **Recognises songs from the church's library** as they start, from a few sung words (even mis-heard ones, and Swahili heard with odd spacing), and offers **♪ Show <song>** at the right verse or chorus.
+- **Follows the live song**: puts up the next slide as the singers reach the end of the current one, and jumps to the verse or chorus actually being sung. Any arrow key or click takes back control; it waits a few seconds after the operator moves.
+- Only songs in the library: Mwanga never fetches lyrics from the internet (copyright, and churches are often offline).
+- Right panel → **Listen**: switches for verses, songs and following.
+
 ## New in 0.3: verse finder
 
 Mwanga listens to the sermon and suggests the Bible verses the preacher mentions — "John chapter three verse sixteen", "Yohana sura ya tatu mstari wa kumi na sita", "Zaburi ishirini na tatu". The operator presses **Show** (or **V**); nothing goes on screen by itself. Right panel → **Listen**.

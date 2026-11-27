@@ -25,6 +25,10 @@ describe('recognising the song being sung', () => {
     expect(identifySong('tunakusifu tunakuabudu wewe ni mwema milele', index)).toMatchObject({ songId: 'asante', slide: 1 });
     expect(identifySong('asante kwa familia yetu na kwa rafiki', index)).toMatchObject({ songId: 'asante', slide: 2 });
   });
+  it('recognises badly heard Swahili by its letters', () => {
+    // what the speech model really heard for "Tunakusifu, tunakuabudu, wewe ni mwema milele"
+    expect(identifySong('Tua ku sifu, tua ku apudu, we we ni muema mirele.', index)).toMatchObject({ songId: 'asante', slide: 1 });
+  });
   it('stays quiet for preaching and for unknown songs', () => {
     expect(identifySong('brothers and sisters let us open our bibles and pray together', index)).toBeNull();
     expect(identifySong('ndugu zangu tusimame tuombe pamoja', index)).toBeNull();
@@ -59,6 +63,9 @@ describe('following a song', () => {
   });
   it('waits a moment after each move', () => {
     expect(followSong('asante kwa familia yetu na kwa rafiki tulio', slides, 0, { lastMoveAt: at - 1000 }, at).move).toBeNull();
+  });
+  it('follows badly heard Swahili', () => {
+    expect(followSong('Tua ku sifu, tua ku apudu, we we ni muema mirele', slides, 0, {}, at).move).toBe(1);
   });
   it('ignores talking between songs', () => {
     expect(followSong('karibuni wote tumshukuru mungu kwa siku hii', slides, 1, {}, at).move).toBeNull();

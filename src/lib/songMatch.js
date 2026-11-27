@@ -19,6 +19,21 @@ function shingles(ws) {
   return out;
 }
 
+// Letter patterns, ignoring spaces: catches Swahili heard as "tua ku sifu" for "tunakusifu".
+const letters = (text) => String(text || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+export function letterGrams(text, n = 4) {
+  const s = letters(text);
+  const g = new Set();
+  for (let i = 0; i + n <= s.length; i++) g.add(s.slice(i, i + n));
+  return g;
+}
+const shareOf = (heardGrams, slideGrams) => {
+  if (!heardGrams.size) return 0;
+  let n = 0;
+  for (const g of heardGrams) if (slideGrams.has(g)) n++;
+  return n / heardGrams.size;
+};
+
 // Word pairs this common say nothing about which song it is ("of the", "ni wa").
 const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'to', 'in', 'is', 'my', 'me', 'i', 'you', 'we', 'he', 'it', 'oh', 'na', 'ni', 'wa', 'ya', 'kwa', 'za', 'la', 'katika', 'yetu', 'wangu']);
 const informative = (sh) => sh.split(' ').some((w) => !STOP.has(w) && w.length > 2);
@@ -27,9 +42,11 @@ const informative = (sh) => sh.split(' ').some((w) => !STOP.has(w) && w.length >
 export function buildSongIndex(songs, maxLines = 4) {
   const map = new Map(); // shingle → Map(songId → Set(slideIndex))
   const meta = new Map();
+  const grams = []; // [{ songId, slide, grams }]
   for (const song of songs) {
     const slides = songSlides(song, maxLines);
     meta.set(song.id, { title: song.title, slides: slides.length });
+    slides.forEach((sl, si) => grams.push({ songId: song.id, slide: si, grams: letterGrams(sl.text) }));
     slides.forEach((sl, si) => {
       for (const sh of shingles(words(sl.text))) {
         if (!informative(sh)) continue;
@@ -40,13 +57,31 @@ export function buildSongIndex(songs, maxLines = 4) {
       }
     });
   }
-  return { map, meta };
+  return { map, meta, grams };
+}
+
+// Second chance when the words were heard too badly to match: compare letter patterns.
+function identifyByLetters(transcript, index) {
+  const hg = letterGrams(transcript);
+  if (hg.size < 14) return null;
+  const bestBySong = new Map();
+  for (const e of index.grams) {
+    const r = shareOf(hg, e.grams);
+    const cur = bestBySong.get(e.songId);
+    if (!cur || r > cur.r) bestBySong.set(e.songId, { r, slide: e.slide });
+  }
+  const ranked = [...bestBySong.entries()].sort((a, b) => b[1].r - a[1].r);
+  if (!ranked.length) return null;
+  const [songId, best] = ranked[0];
+  const second = ranked[1] ? ranked[1][1].r : 0;
+  if (best.r < 0.45 || best.r < second * 1.8) return null;
+  return { songId, title: index.meta.get(songId).title, slide: best.slide, score: best.r, strength: best.r, by: 'letters' };
 }
 
 // Returns the best guess { songId, title, slide, score, strength } or null when nothing is convincing.
 export function identifySong(transcript, index, { minScore = 4 } = {}) {
   const heard = [...shingles(words(transcript))].filter(informative);
-  if (heard.length < 2) return null;
+  if (heard.length < 2) return identifyByLetters(transcript, index);
   const score = new Map();     // songId → points
   const slideHits = new Map(); // songId → Map(slide → points)
   for (const sh of heard) {
@@ -62,10 +97,10 @@ export function identifySong(transcript, index, { minScore = 4 } = {}) {
     }
   }
   const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
-  if (!ranked.length) return null;
+  if (!ranked.length) return identifyByLetters(transcript, index);
   const [bestId, best] = ranked[0];
   const second = ranked[1] ? ranked[1][1] : 0;
-  if (best < minScore || best < second * 1.5) return null; // not sure enough, or two songs too close to call
+  if (best < minScore || best < second * 1.5) return identifyByLetters(transcript, index); // not sure enough from words
   const slides = [...slideHits.get(bestId).entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
   return { songId: bestId, title: index.meta.get(bestId).title, slide: slides[0][0], score: best, strength: Math.min(1, best / 12) };
 }
@@ -112,6 +147,21 @@ export function followSong(transcript, slides, current, state = {}, now = Date.n
     const lastSh = [...shingles(last)].filter(informative);
     const hit = lastSh.filter((sh) => tail.has(sh)).length;
     if (lastSh.length && hit / lastSh.length >= 0.5 && hit >= 1) return { move: current + 1, why: 'end of slide' };
+  }
+  // 3. words too garbled to match: try letter patterns (only forwards, and only when clear)
+  if (best < 3) {
+    const tailText = tailWords.join(' ');
+    const tg = letterGrams(heardWords.join(' '));
+    if (tg.size >= 12) {
+      const shares = slides.map((sl) => shareOf(tg, letterGrams(sl.text)));
+      const curShare = shares[current] || 0;
+      let target = -1;
+      for (let i = current + 1; i < slides.length; i++) if (shares[i] >= 0.5 && shares[i] >= curShare * 1.8) { target = i; break; }
+      if (target >= 0) return { move: target, why: 'singing another slide (letters)' };
+      const lastLine = String(slides[current].text).split('\n').filter((l) => l.trim()).pop() || '';
+      const lg = letterGrams(lastLine);
+      if (current + 1 < slides.length && lg.size >= 6 && shareOf(lg, letterGrams(tailText)) >= 0.6) return { move: current + 1, why: 'end of slide (letters)' };
+    }
   }
   return { move: null, why: 'stay' };
 }

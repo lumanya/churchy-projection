@@ -25,10 +25,14 @@ export async function createTranscriber({ quality = 'fast', cacheDir, onProgress
     model,
     // samples: Float32Array, mono, 16 kHz. language: 'en', 'sw' or 'auto'.
     async transcribe(samples, language = 'auto') {
-      const opts = { task: 'transcribe', return_timestamps: false };
+      // max_new_tokens: a few seconds of speech is never more than ~60 words; stops runaway repetition early
+      const opts = { task: 'transcribe', return_timestamps: false, max_new_tokens: 96, no_repeat_ngram_size: 4 };
       if (LANG[language]) opts.language = LANG[language];
       const out = await asr(samples, opts);
-      const text = String((out && out.text) || '').trim();
+      const text = String((out && out.text) || '').trim()
+        .replace(/(\S{1,6}?)\1{4,}/g, '$1')            // "wewewewewewe…" → "we"
+        .replace(/\b(\w+)([,\s]+\1\b){3,}/gi, '$1');  // "nudu, nudu, nudu, nudu" → "nudu"
+
       return HALLUCINATIONS.test(text) ? '' : text;
     },
     dispose: () => asr.dispose && asr.dispose()
