@@ -14,6 +14,20 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.2
+
+- **Preacher's screen**: a third screen (or a tablet) showing the slide now and next, the clock, a service timer (count up or count down with warnings) and messages from the operator ("5 minutes left"). Right panel → **Preacher**.
+- **Phone remote**: any phone on the church Wi-Fi controls Mwanga — next/back, black, clear, any verse, jump to any item or slide, message the preacher. Right panel → **Phone** → scan the QR code. Protected by a PIN; nothing is reachable from the internet.
+- **Import from EasyWorship** (6 and 7: finds the song database on the PC by itself, or choose Songs.db + SongWords.db or an .ewsx export) and **VideoPsalm** song books (.json). Songs already in Mwanga are skipped.
+- **Automatic updates** from GitHub Releases. Mwanga asks before downloading (data costs money) and installs when it is closed, never during a service.
+- **New icon**: the sun rising over the horizon.
+
+## Releasing an update
+
+1. Change `version` in package.json (for example 0.2.1) and commit.
+2. `git tag v0.2.1 && git push origin main --tags`
+3. GitHub Actions builds the installer and publishes the release. Every installed Mwanga offers the update within a few hours.
+
 ## Run it
 
 ```bash
@@ -47,6 +61,6 @@ Data lives in the user's app-data folder (`%APPDATA%/Mwanga` on Windows): `libra
 - The **Swahili Unlocked Literal Bible** (Door43) is CC BY-SA 4.0 and can be imported from its USFM files today.
 - Hymn books (Tenzi za Rohoni, Nyimbo za Kristo and others) and gospel songs need permission from their publishers before Mwanga ships them. Churches type in or import the songs they use.
 
-## Next (V2)
+## Next
 
-Phone remote over church Wi-Fi, stage screen for the preacher, cloud sync between branches, mobile-money subscriptions, EasyWorship and VideoPsalm import.
+Code signing or Microsoft Store, backup and restore, backgrounds (images and video), cloud sync between branches, mobile-money subscriptions.

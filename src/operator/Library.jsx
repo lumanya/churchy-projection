@@ -5,6 +5,7 @@ import { formatReference } from '../lib/bibleRef.js';
 import { parseOpenLyrics, parsePlainSong } from '../lib/songs.js';
 import { importBibleFiles } from '../lib/bibleImport.js';
 import { uid } from '../lib/defaults.js';
+import { easyWorshipSongs, parseVideoPsalm, pickEasyWorshipFiles } from '../lib/importers.js';
 
 export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash }) {
   const [tab, setTab] = useState('songs');
@@ -28,6 +29,39 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
       } catch (e) { flash(t('importFailed') + ': ' + f.name); }
     }
     if (added.length) { setLibrary((l) => ({ ...l, songs: [...added, ...l.songs] })); flash(`${added.length} ${t('songs').toLowerCase()} +`); }
+  };
+
+  // adds songs, skipping ones the church already has (same title and song book)
+  const addSongs = (list, from) => {
+    const have = new Set(library.songs.map((s) => (s.title + '|' + (s.book || '')).toLowerCase()));
+    const fresh = list.filter((s) => !have.has((s.title + '|' + (s.book || '')).toLowerCase())).map((s) => ({ id: uid(), ...s }));
+    if (fresh.length) setLibrary((l) => ({ ...l, songs: [...fresh, ...l.songs] }));
+    flash(`${from}: ${fresh.length} ${t('songs').toLowerCase()} +${list.length > fresh.length ? ` (${list.length - fresh.length} already here)` : ''}`);
+  };
+
+  const importEasyWorship = async () => {
+    try {
+      let pair = await api.findEasyWorship();
+      if (!pair) {
+        const files = await api.openFiles([{ name: 'EasyWorship', extensions: ['db', 'ewsx', 'zip'] }], true);
+        if (!files.length) return;
+        const { unzipSync } = await import('fflate');
+        pair = pickEasyWorshipFiles(files, unzipSync);
+        if (!pair) { flash(t('ewHelp')); return; }
+      }
+      const { sqlite } = await import('../lib/sqlite.js');
+      const openDb = await sqlite();
+      addSongs(easyWorshipSongs(openDb, pair.songs, pair.words), 'EasyWorship');
+    } catch (e) { flash(`${t('importFailed')}: ${e.message}`); }
+  };
+
+  const importVideoPsalm = async () => {
+    const files = await api.openFiles([{ name: 'VideoPsalm', extensions: ['json', 'txt'] }]);
+    const all = [];
+    for (const f of files) {
+      try { all.push(...parseVideoPsalm(f.text)); } catch (e) { flash(`${t('importFailed')}: ${f.name}`); }
+    }
+    if (all.length) addSongs(all, 'VideoPsalm');
   };
 
   const importBible = async () => {
@@ -75,7 +109,14 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
               </div>
             ))}
           </div>
-          <button type="button" className="wide" onClick={importSongs}>{t('importSongs')} (.txt, OpenLyrics .xml)</button>
+          <div className="import-box">
+            <span className="muted small">{t('importFrom')}</span>
+            <div className="row">
+              <button type="button" className="sm" onClick={importEasyWorship} title={t('ewHelp')}>EasyWorship</button>
+              <button type="button" className="sm" onClick={importVideoPsalm}>VideoPsalm</button>
+              <button type="button" className="sm" onClick={importSongs} title=".txt, OpenLyrics .xml">OpenLP / .txt</button>
+            </div>
+          </div>
         </div>
       )}
 

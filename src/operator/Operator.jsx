@@ -7,6 +7,7 @@ import { parseReference, formatReference, getVerses } from '../lib/bibleRef.js';
 import Library from './Library.jsx';
 import { SongEditor, NoticeEditor, ServiceEditor } from './Editors.jsx';
 import { Mini, Logo } from './Mini.jsx';
+import { formatTimer } from '../stage/timer.js';
 
 export default function Operator() {
   const [ready, setReady] = useState(false);
@@ -24,7 +25,18 @@ export default function Operator() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(null);      // { kind: 'song'|'notice', value }
   const [toast, setToast] = useState('');
+  const [rightTab, setRightTab] = useState('projector');
+  const [stageOpen, setStageOpen] = useState(false);
+  const [stageDraft, setStageDraft] = useState('');
+  const [stageMessage, setStageMessage] = useState('');
+  const [timer, setTimer] = useState({ running: false, startedAt: 0, base: 0, minutes: 0 });
+  const [, tick] = useState(0);
+  const [remote, setRemote] = useState({ on: false, urls: [] });
+  const [qr, setQr] = useState('');
+  const [update, setUpdate] = useState({ state: 'idle' });
+  const [version, setVersion] = useState('');
   const searchRef = useRef(null);
+  const commandRef = useRef(null);
   const t = makeT(settings?.lang);
 
   // ---------- load everything once ----------
@@ -39,12 +51,20 @@ export default function Operator() {
       setBibleList(await api.bible.list());
       setDisplays(await api.displays.list());
       setOutputOpen(await api.output.isOpen());
+      setStageOpen(await api.stage.isOpen());
+      setRemote(await api.remote.info());
+      setUpdate(await api.update.status());
+      setVersion(await api.version());
       if (saved.session && saved.session.live) setLive(saved.session.live); // back where we were after a crash or power cut
       setReady(true);
     })();
     const off1 = api.output.onState(setOutputOpen);
     const off2 = api.displays.onChanged(async () => setDisplays(await api.displays.list()));
-    return () => { off1(); off2(); };
+    const off3 = api.stage.onState(setStageOpen);
+    const off4 = api.remote.onInfo(setRemote);
+    const off5 = api.update.onStatus(setUpdate);
+    const off6 = api.remote.onCommand((c) => commandRef.current && commandRef.current(c));
+    return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
   }, []);
 
   // ---------- load the Bibles we need ----------
@@ -94,11 +114,33 @@ export default function Operator() {
     return items[idx + 1] ? slidesOf(items[idx + 1])[0] || null : null;
   }, [live, items, slides, slidesOf]);
 
-  // ---------- send to the projector whenever something visible changes ----------
+  const liveItemIndex = live && !live.custom ? items.findIndex((i) => i.id === live.itemId) : -1;
+  const liveSlides = useMemo(() => (liveItemIndex >= 0 ? slidesOf(items[liveItemIndex]) : []), [liveItemIndex, items, slidesOf]);
+
+  // ---------- send to the projector, the preacher's screen and phones whenever something changes ----------
   useEffect(() => {
     if (!settings) return;
-    api.live.set({ slide: liveSlide, black, message: messageOn ? message : '', theme: settings.theme });
-  }, [liveSlide, black, message, messageOn, settings?.theme]);
+    api.live.set({
+      slide: liveSlide, next: nextSlide, black, message: messageOn ? message : '', theme: settings.theme,
+      stageMessage, timer, now: Date.now(),
+      service: { name: service?.name, items: items.map((i) => ({ title: i.title, type: i.type })) },
+      liveItem: liveItemIndex, liveIndex: live && !live.custom ? live.index : -1,
+      slides: liveSlides.map((x) => ({ label: x.label, text: x.text.length > 140 ? x.text.slice(0, 140) + '…' : x.text }))
+    });
+  }, [liveSlide, nextSlide, black, message, messageOn, settings?.theme, stageMessage, timer, items, liveItemIndex, liveSlides, live]);
+
+  // ---------- QR code for the phone remote ----------
+  useEffect(() => {
+    if (remote.on && remote.urls[0]) api.remote.qr(remote.urls[0]).then(setQr);
+    else setQr('');
+  }, [remote.on, remote.urls[0]]);
+
+  // the timer on this screen ticks while it runs
+  useEffect(() => {
+    if (!timer.running) return undefined;
+    const h = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(h);
+  }, [timer.running]);
 
   // ---------- actions ----------
   const updateService = (fn) => setLibrary((lib) => ({
@@ -132,6 +174,38 @@ export default function Operator() {
     setQuery('');
   };
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+
+  const timerAction = (action, minutes) => setTimer((tm) => {
+    const now = Date.now();
+    if (action === 'start') return tm.running ? tm : { ...tm, running: true, startedAt: now };
+    if (action === 'pause') return tm.running ? { ...tm, running: false, base: tm.base + (now - tm.startedAt), startedAt: 0 } : tm;
+    if (action === 'reset') return { running: false, startedAt: 0, base: 0, minutes: tm.minutes };
+    if (action === 'minutes') return { ...tm, minutes: Math.max(0, Math.min(600, minutes || 0)) };
+    return tm;
+  });
+
+  const showVerseText = (text) => {
+    const ref = parseReference(text);
+    const main = bibles[settings.mainBible];
+    if (ref && main && getVerses(main, ref).length) {
+      addItem({ type: 'bible', ref: { ...ref, bibleId: settings.mainBible }, title: formatReference(ref, main.lang === 'sw' ? 'sw' : 'en') }, true);
+      return true;
+    }
+    flash(t('notFound'));
+    return false;
+  };
+
+  // commands from phones (always the latest version of the handlers)
+  commandRef.current = (c) => {
+    if (c.type === 'next') step(1);
+    else if (c.type === 'prev') step(-1);
+    else if (c.type === 'black') setBlack((b) => !b);
+    else if (c.type === 'clear') setLive(null);
+    else if (c.type === 'goto' && Number.isInteger(c.item) && Number.isInteger(c.slide)) goLive(c.item, c.slide);
+    else if (c.type === 'verse' && typeof c.text === 'string') showVerseText(c.text.slice(0, 60));
+    else if (c.type === 'stageMessage' && typeof c.text === 'string') { setStageMessage(c.text.slice(0, 200)); setStageDraft(c.text.slice(0, 200)); }
+    else if (c.type === 'timer' && ['start', 'pause', 'reset'].includes(c.action)) timerAction(c.action);
+  };
 
   // ---------- keyboard: works with presentation clickers too (they send Page Up / Page Down) ----------
   useEffect(() => {
@@ -170,6 +244,16 @@ export default function Operator() {
 
   if (!ready) return <div className="boot"><Logo size={40} /></div>;
 
+  const timerView = formatTimer(timer);
+  const toggleStage = async () => {
+    if (stageOpen) { await api.stage.close(); setSetting({ stageOpen: false }); }
+    else { await api.stage.open(); setStageOpen(true); setSetting({ stageOpen: true }); }
+  };
+  const toggleRemote = async () => {
+    const info = remote.on ? await api.remote.stop() : await api.remote.start();
+    setRemote(info);
+    setSetting({ remoteOn: info.on, remotePin: info.pin || settings.remotePin });
+  };
   const toggleOutput = async () => { if (outputOpen && inElectron) await api.output.close(); else { await api.output.open(); setOutputOpen(true); } };
   const setSetting = (patch) => setSettings((s) => ({ ...s, ...patch }));
 
@@ -282,44 +366,119 @@ export default function Operator() {
             <div className="mon-head"><strong className="muted">{t('next')}</strong></div>
             <Mini slide={nextSlide} theme={settings.theme} />
           </div>
-          <div className="panel">
-            <label className="field"><span>{t('message')}</span>
-              <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setMessageOn(true); if (e.key === 'Escape') setMessageOn(false); }} />
-            </label>
-            <div className="row">
-              <button type="button" className={messageOn ? 'warn' : 'primary'} onClick={() => setMessageOn((m) => !m)} disabled={!message}>{messageOn ? t('hide') : t('show')}</button>
-              <span className="muted small">{t('messageHelp')}</span>
-            </div>
+
+          <div className="tabs right-tabs" role="tablist">
+            {[['projector', t('projector')], ['stage', t('preacher')], ['phone', t('phone')]].map(([k, label]) => (
+              <button key={k} type="button" role="tab" data-tab={k} aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>{label}</button>
+            ))}
           </div>
-          <div className="panel">
-            <div className="row between">
-              <strong>{outputOpen ? t('projectorOn') : t('projectorOff')}</strong>
-              <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput}>{outputOpen ? '■' : '▶'} {t('display')}</button>
+
+          {rightTab === 'projector' && (
+            <div className="panel">
+              <div className="row between">
+                <strong>{outputOpen ? t('projectorOn') : t('projectorOff')}</strong>
+                <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput}>{outputOpen ? '■' : '▶'} {t('display')}</button>
+              </div>
+              {displays.length < 2 && <p className="muted small" style={{ margin: 0 }}>{t('noSecond')}</p>}
+              <label className="field"><span>{t('display')}</span>
+                <select value={settings.displayId ?? ''} onChange={(e) => { setSetting({ displayId: e.target.value ? Number(e.target.value) : null }); setTimeout(() => api.output.move(), 500); }}>
+                  <option value="">Auto</option>
+                  {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+              <label className="field"><span>{t('message')}</span>
+                <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setMessageOn(true); if (e.key === 'Escape') setMessageOn(false); }} />
+              </label>
+              <div className="row">
+                <button type="button" className={messageOn ? 'warn' : 'primary'} onClick={() => setMessageOn((m) => !m)} disabled={!message}>{messageOn ? t('hide') : t('show')}</button>
+                <span className="muted small">{t('messageHelp')}</span>
+              </div>
+              <label className="field"><span>{t('secondBible')}</span>
+                <select value={settings.secondBible} onChange={(e) => setSetting({ secondBible: e.target.value })}>
+                  <option value="">{t('none')}</option>
+                  {bibleList.filter((b) => b.id !== settings.mainBible).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+              <div className="row">
+                <label className="swatch"><input type="color" value={settings.theme.bg} onChange={(e) => setSetting({ theme: { ...settings.theme, bg: e.target.value } })} /> {t('background')}</label>
+                <label className="swatch"><input type="color" value={settings.theme.fg} onChange={(e) => setSetting({ theme: { ...settings.theme, fg: e.target.value } })} /> {t('textColour')}</label>
+              </div>
             </div>
-            {displays.length < 2 && <p className="muted small" style={{ margin: 0 }}>{t('noSecond')}</p>}
-            <label className="field"><span>{t('display')}</span>
-              <select value={settings.displayId ?? ''} onChange={(e) => { setSetting({ displayId: e.target.value ? Number(e.target.value) : null }); setTimeout(() => api.output.move(), 500); }}>
-                <option value="">Auto</option>
-                {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-              </select>
-            </label>
-            <label className="field"><span>{t('secondBible')}</span>
-              <select value={settings.secondBible} onChange={(e) => setSetting({ secondBible: e.target.value })}>
-                <option value="">{t('none')}</option>
-                {bibleList.filter((b) => b.id !== settings.mainBible).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
-            <div className="row">
-              <label className="swatch"><input type="color" value={settings.theme.bg} onChange={(e) => setSetting({ theme: { ...settings.theme, bg: e.target.value } })} /> {t('background')}</label>
-              <label className="swatch"><input type="color" value={settings.theme.fg} onChange={(e) => setSetting({ theme: { ...settings.theme, fg: e.target.value } })} /> {t('textColour')}</label>
+          )}
+
+          {rightTab === 'stage' && (
+            <div className="panel">
+              <p className="muted small" style={{ margin: 0 }}>{t('stageHelp')}</p>
+              <label className="field"><span>{t('messageToPreacher')}</span>
+                <input id="stage-msg" value={stageDraft} placeholder={t('stagePlaceholder')} onChange={(e) => setStageDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setStageMessage(stageDraft); if (e.key === 'Escape') setStageMessage(''); }} />
+              </label>
+              <div className="row">
+                <button type="button" id="stage-msg-show" className="primary" disabled={!stageDraft} onClick={() => setStageMessage(stageDraft)}>{t('show')}</button>
+                <button type="button" disabled={!stageMessage} onClick={() => setStageMessage('')}>{t('hide')}</button>
+                {stageMessage && <span className="accent small">{t('showing')}</span>}
+              </div>
+              <div className="timer-box">
+                <span className={'timer-big mono' + (timerView.over ? ' over' : timerView.warn ? ' warn' : '')}>{timerView.text}</span>
+                <div className="row">
+                  {timer.running
+                    ? <button type="button" onClick={() => timerAction('pause')}>{t('pause')}</button>
+                    : <button type="button" id="timer-start" className="primary" onClick={() => timerAction('start')}>{t('start')}</button>}
+                  <button type="button" onClick={() => timerAction('reset')}>{t('reset')}</button>
+                  <label className="swatch">{t('countdown')}
+                    <input type="number" min="0" max="600" style={{ width: 70 }} value={timer.minutes || ''} placeholder="—" onChange={(e) => timerAction('minutes', +e.target.value)} /> min
+                  </label>
+                </div>
+              </div>
+              <div className="row between">
+                <strong>{stageOpen ? t('stageOn') : t('stageOff')}</strong>
+                <button type="button" className={stageOpen ? '' : 'primary'} onClick={toggleStage}>{stageOpen ? '■' : '▶'} {t('display')}</button>
+              </div>
+              <label className="field"><span>{t('display')}</span>
+                <select value={settings.stageDisplayId ?? ''} onChange={(e) => { setSetting({ stageDisplayId: e.target.value ? Number(e.target.value) : null }); setTimeout(() => api.stage.move(), 500); }}>
+                  <option value="">{t('previewWindow')}</option>
+                  {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+              <p className="muted small" style={{ margin: 0 }}>{t('stageTablet')}</p>
             </div>
-          </div>
+          )}
+
+          {rightTab === 'phone' && (
+            <div className="panel">
+              <div className="row between">
+                <strong>{remote.on ? t('remoteOn') : t('remoteOff')}</strong>
+                <button type="button" id="remote-toggle" className={remote.on ? '' : 'primary'} onClick={toggleRemote}>{remote.on ? t('turnOff') : t('turnOn')}</button>
+              </div>
+              {!remote.on && <p className="muted small" style={{ margin: 0 }}>{t('remoteHelp')}</p>}
+              {remote.on && (
+                <>
+                  {qr ? <img className="qr" src={qr} alt={t('scanMe')} /> : null}
+                  <p className="small" style={{ margin: 0 }}>{t('scanMe')}</p>
+                  <div className="field"><span>{t('orOpen')}</span>
+                    {remote.urls.length ? remote.urls.map((u) => <code key={u} className="url">{u}</code>) : <span className="muted small">{t('noNetwork')}</span>}
+                  </div>
+                  <div className="row between">
+                    <span>PIN <strong className="mono pin">{remote.pin}</strong></span>
+                    <span className="muted small">{remote.clients || 0} {t('phonesConnected')}</span>
+                  </div>
+                  <p className="muted small" style={{ margin: 0 }}>{t('firewallHelp')}</p>
+                </>
+              )}
+            </div>
+          )}
         </section>
       </main>
 
       <footer className="op-foot mono">
         <span>{t('shortcuts')}</span>
-        <span>{toast || (inElectron ? '' : 'BROWSER PREVIEW')}</span>
+        <span className="foot-right">
+          {toast && <span className="toast">{toast}</span>}
+          {update.state === 'available' && <button type="button" className="sm primary" onClick={() => api.update.download()}>{t('updateAvailable')} {update.version}{update.size ? ` · ${Math.round(update.size / 1e6)} MB` : ''} — {t('download')}</button>}
+          {update.state === 'downloading' && <span>{t('downloading')} {update.percent || 0}%</span>}
+          {update.state === 'ready' && <button type="button" className="sm primary" onClick={() => api.update.install()}>{t('updateReady')} {update.version} — {t('restartNow')}</button>}
+          <span>{inElectron ? 'MWANGA ' + version : 'BROWSER PREVIEW'}</span>
+        </span>
       </footer>
 
       {editing?.kind === 'song' && (

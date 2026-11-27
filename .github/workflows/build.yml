@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # needed to publish releases that Mwanga's auto-update reads
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,9 +33,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run dist:win
+      # a version tag (v0.2.0) publishes a GitHub Release; every installed Mwanga sees it as an update
+      - name: Build and publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
           name: Mwanga-Windows-installer

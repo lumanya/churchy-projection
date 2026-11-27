@@ -8,6 +8,8 @@ const on = (channel) => (fn) => {
 };
 
 contextBridge.exposeInMainWorld('mwanga', {
+  kind: 'electron',
+  version: () => ipcRenderer.invoke('app:version'),
   store: {
     load: () => ipcRenderer.invoke('store:load'),
     save: (name, data) => ipcRenderer.invoke('store:save', name, data)
@@ -29,9 +31,31 @@ contextBridge.exposeInMainWorld('mwanga', {
     move: () => ipcRenderer.invoke('output:move'),
     onState: on('output:state')
   },
+  stage: {
+    isOpen: () => ipcRenderer.invoke('stage:isOpen'),
+    open: () => ipcRenderer.invoke('stage:open'),
+    close: () => ipcRenderer.invoke('stage:close'),
+    move: () => ipcRenderer.invoke('stage:move'),
+    onState: on('stage:state')
+  },
+  remote: {
+    start: () => ipcRenderer.invoke('remote:start'),
+    stop: () => ipcRenderer.invoke('remote:stop'),
+    info: () => ipcRenderer.invoke('remote:info'),
+    qr: (text) => ipcRenderer.invoke('remote:qr', text),
+    onInfo: on('remote:info'),
+    onCommand: on('remote:command')
+  },
+  update: {
+    status: () => ipcRenderer.invoke('update:status'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onStatus: on('update:status')
+  },
   live: {
     set: (live) => ipcRenderer.send('live:set', live),
     onUpdate: on('live:update')
   },
-  openFiles: (filters) => ipcRenderer.invoke('file:open', filters)
+  openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
+  findEasyWorship: () => ipcRenderer.invoke('easyworship:find')
 });

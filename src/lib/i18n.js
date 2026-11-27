@@ -1,6 +1,17 @@
 // Interface text. English is the default; Swahili is one click away.
 const T = {
   en: {
+    preacher: 'Preacher', phone: 'Phone', messageToPreacher: 'Message to the preacher', stagePlaceholder: 'e.g. 5 minutes left',
+    stageHelp: 'The preacher’s screen shows the slide now and next, the time and your messages. Only the preacher sees it.',
+    showing: 'Showing', start: 'Start', pause: 'Pause', reset: 'Reset', countdown: 'Count down',
+    stageOn: 'Preacher screen on', stageOff: 'Preacher screen off', previewWindow: 'Preview window',
+    stageTablet: 'A tablet or phone can be the preacher’s screen too: open the Phone tab, scan the code, then tap Preacher view.',
+    remoteOn: 'Phone remote on', remoteOff: 'Phone remote off', turnOn: 'Turn on', turnOff: 'Turn off',
+    remoteHelp: 'Control slides from a phone on the same Wi-Fi as this PC. Phones need the PIN shown here.',
+    scanMe: 'Scan with the phone camera', orOpen: 'Or open in the phone’s browser', noNetwork: 'This PC is not on a network. Connect it to the church Wi-Fi.',
+    phonesConnected: 'connected', firewallHelp: 'If Windows asks about the firewall, allow Mwanga on private networks.',
+    updateAvailable: 'Update', download: 'Download', downloading: 'Downloading update', updateReady: 'Update', restartNow: 'Restart Mwanga to install',
+    importFrom: 'Import from', ewHelp: 'Looks for EasyWorship on this PC. If it isn’t found, choose Songs.db and SongWords.db (or an .ewsx export).',
     service: 'Order of service', songs: 'Songs', bible: 'Bible', notices: 'Notices',
     search: 'Search songs or verses — try jn 3:16 or a hymn number',
     black: 'Black screen', restore: 'Restore screen', clear: 'Clear', live: 'Live', next: 'Next', onAir: 'ON AIR',
@@ -23,6 +34,17 @@ const T = {
     importedBible: 'Bible added', importFailed: 'Could not import', minutes: 'items'
   },
   sw: {
+    preacher: 'Mhubiri', phone: 'Simu', messageToPreacher: 'Ujumbe kwa mhubiri', stagePlaceholder: 'mf. Dakika 5 zimebaki',
+    stageHelp: 'Skrini ya mhubiri inaonyesha slaidi ya sasa na inayofuata, muda na jumbe zako. Ni mhubiri tu anayeiona.',
+    showing: 'Inaonyeshwa', start: 'Anza', pause: 'Simamisha', reset: 'Anza upya', countdown: 'Hesabu kurudi',
+    stageOn: 'Skrini ya mhubiri imewashwa', stageOff: 'Skrini ya mhubiri imezimwa', previewWindow: 'Dirisha dogo',
+    stageTablet: 'Tableti au simu inaweza kuwa skrini ya mhubiri: fungua kichupo cha Simu, skani msimbo, kisha gusa Preacher view.',
+    remoteOn: 'Rimoti ya simu imewashwa', remoteOff: 'Rimoti ya simu imezimwa', turnOn: 'Washa', turnOff: 'Zima',
+    remoteHelp: 'Endesha slaidi kwa simu iliyo kwenye Wi-Fi moja na kompyuta hii. Simu zinahitaji PIN inayoonyeshwa hapa.',
+    scanMe: 'Skani kwa kamera ya simu', orOpen: 'Au fungua kwenye kivinjari cha simu', noNetwork: 'Kompyuta hii haiko kwenye mtandao. Iunganishe na Wi-Fi ya kanisa.',
+    phonesConnected: 'zimeunganishwa', firewallHelp: 'Windows ikiuliza kuhusu firewall, ruhusu Mwanga kwenye mitandao ya binafsi.',
+    updateAvailable: 'Toleo jipya', download: 'Pakua', downloading: 'Inapakua toleo jipya', updateReady: 'Toleo', restartNow: 'Funga na fungua Mwanga kusakinisha',
+    importFrom: 'Ingiza kutoka', ewHelp: 'Inatafuta EasyWorship kwenye kompyuta hii. Isipopatikana, chagua Songs.db na SongWords.db (au faili la .ewsx).',
     service: 'Ratiba ya ibada', songs: 'Nyimbo', bible: 'Biblia', notices: 'Matangazo',
     search: 'Tafuta wimbo au mstari — mf. yh 3:16 au namba ya wimbo',
     black: 'Skrini nyeusi', restore: 'Rudisha skrini', clear: 'Futa', live: 'Hewani', next: 'Inayofuata', onAir: 'HEWANI',
