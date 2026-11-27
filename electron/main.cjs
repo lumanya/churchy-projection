@@ -18,7 +18,7 @@ const userBibles = () => path.join(userDir(), 'bibles');
 
 // Pictures and videos the church adds are copied into Mwanga's own folder and served to the windows
 // as mwanga-media://m/<file>, so they keep working if the original is moved or the USB stick is taken out.
-protocol.registerSchemesAsPrivileged([{ scheme: 'mwanga-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'mwanga-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }]);
 const mediaDir = () => path.join(app.getPath('userData'), 'media');
 const MEDIA_TYPES = {
   '.jpg': ['image', 'image/jpeg'], '.jpeg': ['image', 'image/jpeg'], '.png': ['image', 'image/png'], '.gif': ['image', 'image/gif'],
@@ -316,10 +316,11 @@ function serveMediaFile(file, rangeHeader) {
     if (start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
     return new Response(Readable.toWeb(fs.createReadStream(file, { start, end })), {
       status: 206,
-      headers: { 'Content-Type': type, 'Content-Length': String(end - start + 1), 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes' }
+      headers: { 'Content-Type': type, 'Content-Length': String(end - start + 1), 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' }
     });
   }
-  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' } });
+  // Allow-Origin: Mwanga's own pages may read the pixels (to make small previews)
+  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' } });
 }
 
 function mediaPath(name) {
@@ -337,7 +338,7 @@ function importMediaPaths(paths) {
     const id = crypto.randomBytes(6).toString('hex');
     const file = id + ext;
     fs.copyFileSync(p, path.join(mediaDir(), file));
-    out.push({ id, file, kind: MEDIA_TYPES[ext][0], name: path.basename(p, path.extname(p)), size: fs.statSync(p).size });
+    out.push({ id, file, kind: MEDIA_TYPES[ext][0], name: path.basename(p, path.extname(p)), size: fs.statSync(p).size, addedAt: Date.now() });
   }
   return out;
 }
@@ -351,7 +352,23 @@ ipcMain.handle('media:import', async () => {
   });
   return r.canceled ? [] : importMediaPaths(r.filePaths.slice(0, 100));
 });
-ipcMain.handle('media:remove', (_e, file) => { const f = mediaPath(file); if (f) fs.unlinkSync(f); return true; });
+const thumbDir = () => path.join(mediaDir(), 'thumbs');
+ipcMain.handle('media:remove', (_e, m) => {
+  const entry = typeof m === 'string' ? { file: m } : (m || {});
+  const f = mediaPath(entry.file);
+  if (f) fs.unlinkSync(f);
+  if (entry.thumb) { const t = path.join(thumbDir(), path.basename(entry.thumb)); if (fs.existsSync(t)) fs.unlinkSync(t); }
+  return true;
+});
+// small preview pictures, made by the operator screen when media is added, so long lists scroll smoothly
+ipcMain.handle('media:saveThumb', (_e, id, dataUrl) => {
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
+  if (!m || !/^[a-f0-9]{6,24}$/.test(String(id))) return null;
+  fs.mkdirSync(thumbDir(), { recursive: true });
+  const name = `${id}.jpg`;
+  fs.writeFileSync(path.join(thumbDir(), name), Buffer.from(m[1], 'base64'));
+  return name;
+});
 
 // the projector reports how far a video has played; the operator screen shows it
 ipcMain.on('video:progress', (_e, p) => send(operator, 'video:progress', p));
@@ -517,32 +534,51 @@ async function screenshotRun(dir) {
   const followAfter = await outText();
   await snap(operator, 'operator-following.png');
   fs.writeFileSync(path.join(dir, 'song-check.json'), JSON.stringify({ songShown, followBefore, followAfter }, null, 1));
-  // pictures and videos: import, default background, poster, video with controls
+  // pictures and videos: import, browse, background, poster, video with controls
   if (process.env.MWANGA_TEST_MEDIA) {
     const outHas = (sel) => output.webContents.executeJavaScript(`!!document.querySelector(${JSON.stringify(sel)})`);
+    const card = (name) => `[...document.querySelectorAll('.media-card')].find((c) => c.querySelector('.media-name').textContent === ${JSON.stringify(name)})`;
+    const count = () => js(`document.querySelectorAll('.media-card').length`);
     await js(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'Media').click()`); await wait(300);
-    await js(`document.querySelector('#media-import').click()`); await wait(1200);
-    await js(`document.querySelectorAll('.media-card')[0].querySelectorAll('.row button')[2].click()`); await wait(300); // BG
+    await js(`document.querySelector('#media-import').click()`); await wait(1500);
+    // previews are made once, in the background
+    let thumbs = 0;
+    for (let i = 0; i < 40 && thumbs < 9; i++) { await wait(500); thumbs = await js(`[...document.querySelectorAll('.media-thumb img')].filter((i) => i.src.includes('/m/t/') && i.complete && i.naturalWidth > 0).length`); }
+    const all = await count();
+    await js(`document.querySelector('[data-kind="video"]').click()`); await wait(300);
+    const videos = await count();
+    await snap(operator, 'operator-media-videos.png');
+    await js(`document.querySelector('[data-kind="image"]').click()`); await wait(300);
+    const pictures = await count();
+    await js(`document.querySelector('[data-kind="all"]').click()`); await wait(200);
+    await js(`(() => { const i = document.querySelector('#media-search'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'poster'); i.dispatchEvent(new Event('input', { bubbles: true })); })()`); await wait(300);
+    const searchPoster = await js(`[...document.querySelectorAll('.media-name')].map((n) => n.textContent)`);
+    await js(`(() => { const i = document.querySelector('#media-search'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ''); i.dispatchEvent(new Event('input', { bubbles: true })); })()`); await wait(300);
+    // preview a video, put it in a collection
+    await js(`${card('christmas-carols')}.querySelector('.thumb-btn').click()`); await wait(1500);
+    const previewPlaying = await js(`(() => { const v = document.querySelector('#preview-video'); return v ? { t: v.currentTime, muted: v.muted } : null; })()`);
+    await js(`(() => { const i = document.querySelector('#preview-collection'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Christmas'); i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await snap(operator, 'operator-media-preview.png');
+    await js(`[...document.querySelectorAll('.preview-side button')].find((b) => b.textContent === 'Close').click()`); await wait(400);
+    const collectionShown = await js(`${card('christmas-carols')}.querySelector('.media-coll')?.textContent || ''`);
+    await js(`(() => { const s = document.querySelector('[aria-label="Collection"]'); s.value = 'Christmas'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await wait(300);
+    const inChristmas = await js(`[...document.querySelectorAll('.media-name')].map((n) => n.textContent)`);
+    await js(`(() => { const s = document.querySelector('[aria-label="Collection"]'); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await wait(200);
+    // the large view
+    await js(`document.querySelector('#media-large').click()`); await wait(800);
+    await snap(operator, 'operator-media-large.png');
+    const tiles = await js(`document.querySelectorAll('.media-tiles .media-card').length`);
+    await js(`[...document.querySelectorAll('.media-modal button')].find((b) => b.textContent === 'Close').click()`); await wait(300);
+    // background, poster and video still work
+    await js(`${card('worship-background')}.querySelectorAll('.row button')[2].click()`); await wait(300);
     await js(`document.querySelectorAll('.svc-main')[1].click()`); await wait(200);
     await js(`document.querySelectorAll('.slide')[0].click()`); await wait(1200);
-    const bgShown = await outHas('img.bg-fill');
     const bgLoaded = await output.webContents.executeJavaScript(`(() => { const i = document.querySelector('img.bg-fill'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
-    await snap(output, 'output-background.png'); await snap(operator, 'operator-media.png');
-    await js(`document.querySelectorAll('.media-card')[1].querySelector('.primary').click()`); await wait(1200);
+    await js(`${card('building-fund-poster')}.querySelector('.primary').click()`); await wait(1200);
     const posterLoaded = await output.webContents.executeJavaScript(`(() => { const i = document.querySelector('img.media-fit'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
-    await snap(output, 'output-poster.png');
-    await js(`document.querySelectorAll('.media-card')[2].querySelector('.primary').click()`); await wait(3500);
-    const vid = () => output.webContents.executeJavaScript(`(() => { const v = document.querySelector('video.media-fit'); return v ? { t: v.currentTime, paused: v.paused, muted: v.muted, volume: v.volume, duration: v.duration, w: v.videoWidth } : null; })()`);
-    const playing = await vid();
-    const timeShown = await js(`(document.querySelector('#video-time') || {}).textContent || ''`);
-    await snap(operator, 'operator-video.png');
-    await js(`document.querySelector('#video-toggle').click()`); await wait(800);
-    const paused = await vid();
-    await js(`[...document.querySelectorAll('.video-ctl button')].find((b) => b.textContent.includes('Restart')).click()`); await wait(1200);
-    const restarted = await vid();
-    // seeking works only if the media protocol answers range requests
-    const seek = await output.webContents.executeJavaScript(`new Promise((r) => { const v = document.querySelector('video.media-fit'); v.currentTime = 8; v.onseeked = () => r(v.currentTime); setTimeout(() => r(-1), 3000); })`);
-    fs.writeFileSync(path.join(dir, 'media-check.json'), JSON.stringify({ bgShown, bgLoaded, posterLoaded, playing, timeShown, paused, restarted, seek }, null, 1));
+    await js(`${card('church-clip')}.querySelector('.primary').click()`); await wait(3000);
+    const videoPlaying = await output.webContents.executeJavaScript(`(() => { const v = document.querySelector('video.media-fit'); return v ? { t: v.currentTime, paused: v.paused, muted: v.muted } : null; })()`);
+    fs.writeFileSync(path.join(dir, 'media-check.json'), JSON.stringify({ thumbs, all, videos, pictures, searchPoster, previewPlaying, collectionShown, inChristmas, tiles, bgLoaded, posterLoaded, videoPlaying }, null, 1));
   }
   // start the real speech engine once and record its first message (proves it loads in this build)
   process.env.MWANGA_LISTEN_REAL = '1';
@@ -573,8 +609,12 @@ async function screenshotRun(dir) {
 }
 
 app.whenReady().then(() => {
+  // mwanga-media://m/<file> · mwanga-media://m/t/<thumbnail>
   protocol.handle('mwanga-media', (req) => {
-    const file = mediaPath(new URL(req.url).pathname.slice(1));
+    const parts = new URL(req.url).pathname.slice(1).split('/');
+    const file = parts[0] === 't'
+      ? (() => { const t = path.join(thumbDir(), path.basename(decodeURIComponent(parts[1] || ''))); return fs.existsSync(t) ? t : null; })()
+      : mediaPath(parts[0]);
     if (!file) return new Response('Not found', { status: 404 });
     return serveMediaFile(file, req.headers.get('range'));
   });

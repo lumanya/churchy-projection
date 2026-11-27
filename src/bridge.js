@@ -11,7 +11,7 @@ const stubs = {
   findEasyWorship: async () => null,
   findVideoPsalm: async () => null,
   listen: { start: async () => false, stop: async () => true, audio: () => {}, onEvent: noop },
-  media: { import: async () => [], remove: async () => true, url: () => '' },
+  media: { import: async () => [], remove: async () => true, saveThumb: async () => null, url: () => '', thumbUrl: () => '' },
   video: { report: () => {}, onProgress: noop }
 };
 
@@ -35,7 +35,11 @@ function webBridge(pin) {
         return () => { closed = true; es && es.close(); };
       }
     },
-    media: { import: async () => [], remove: async () => true, url: (file) => `/api/media/${encodeURIComponent(file)}?${q}` },
+    media: {
+      ...stubs.media,
+      url: (m) => { const f = typeof m === 'string' ? m : m && m.file; return f ? `/api/media/${encodeURIComponent(f)}?${q}` : ''; },
+      thumbUrl: () => ''
+    },
     command: (cmd) => fetch(`/api/command?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) })
   };
 }

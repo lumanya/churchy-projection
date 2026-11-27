@@ -216,3 +216,27 @@ kbd.on-accent { color: var(--on-accent); border: 1px solid rgba(26,10,0,.4); bor
 .media-card .row button { height: 28px; padding: 0 8px; font-size: 11px; }
 .media-card.is-bg { outline: 2px solid var(--accent); }
 .bg-pick { max-width: 180px; height: 30px; font-size: 12px; }
+
+/* ---------- media browser ---------- */
+.chips { display: flex; gap: 4px; background: var(--raise); border-radius: 8px; padding: 3px; }
+.chips button { flex: 1; height: 30px; border: 0; font-weight: 500; font-size: 12px; color: var(--muted); padding: 0 6px; }
+.chips button.on { background: var(--panel); color: var(--text); font-weight: 600; }
+.chips .count { font: 500 10px var(--mono); color: var(--muted); margin-left: 3px; }
+.thumb-btn { height: auto; padding: 0; border: 0; background: transparent; flex: 0 0 100px; }
+.thumb-btn:hover { background: transparent; outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.thumb-btn .media-thumb { flex: none; width: 100px; }
+.media-thumb .badge.video { background: rgba(255,107,44,.92); color: #1A0A00; }
+.media-coll { font: 500 10px var(--mono); color: var(--accent-soft); text-transform: uppercase; letter-spacing: .4px; }
+.media-modal { width: min(1200px, 94vw); height: 88vh; }
+.media-modal-tools { display: grid; grid-template-columns: 1fr 1.2fr; gap: 10px; align-items: center; }
+.media-modal-tools > .row:first-child { grid-column: 1; }
+.media-tiles { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-content: start; }
+.media-card.tile { flex-direction: column; align-items: stretch; }
+.media-card.tile .thumb-btn, .media-card.tile .thumb-btn .media-thumb { width: 100%; flex: none; }
+.preview-modal { width: min(1100px, 94vw); flex-direction: row; gap: 18px; }
+.preview-stage { flex: 1; min-width: 0; background: #000; border-radius: 6px; display: grid; place-items: center; max-height: 76vh; overflow: hidden; }
+.preview-stage img, .preview-stage video { max-width: 100%; max-height: 76vh; display: block; }
+.preview-side { width: 280px; flex: 0 0 280px; display: flex; flex-direction: column; gap: 10px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }

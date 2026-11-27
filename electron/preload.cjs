@@ -64,8 +64,10 @@ contextBridge.exposeInMainWorld('mwanga', {
   },
   media: {
     import: () => ipcRenderer.invoke('media:import'),
-    remove: (file) => ipcRenderer.invoke('media:remove', file),
-    url: (file) => `mwanga-media://m/${encodeURIComponent(file)}`
+    remove: (entry) => ipcRenderer.invoke('media:remove', entry),
+    saveThumb: (id, dataUrl) => ipcRenderer.invoke('media:saveThumb', id, dataUrl),
+    url: (m) => { const f = typeof m === 'string' ? m : m && m.file; return f ? `mwanga-media://m/${encodeURIComponent(f)}` : ''; },
+    thumbUrl: (m) => (m && m.thumb ? `mwanga-media://m/t/${encodeURIComponent(m.thumb)}` : '')
   },
   video: {
     report: (p) => ipcRenderer.send('video:progress', p),

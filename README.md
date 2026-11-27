@@ -14,6 +14,15 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.6: finding pictures and videos
+
+Library → **Media**:
+- **Pictures / Videos** tabs with counts, **search** by name or collection, **sort** by newest, name or size.
+- **Collections** (Christmas, Announcements, Youth…): set one in the preview; filter by it. New files go into the collection being viewed.
+- **Small previews** are made once when a file is added (videos show their length), so long lists scroll smoothly.
+- **Preview**: click a thumbnail for a large view: play the video (silent unless you tick sound), rename, set the collection, see size and length, show, add, use as background or remove.
+- **Large view** (⤢) for browsing many files at once.
+
 ## New in 0.5: pictures and videos
 
 Library → **Media**:
