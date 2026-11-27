@@ -1,0 +1,52 @@
+# Mwanga
+
+**Let the Word be seen.** Church projection software by ChurchyCodes: songs, Bible verses and notices on the projector or TV, controlled from the church computer. Works fully offline.
+
+## What V1 does
+
+- **Order of service**: build each service from songs, Bible passages and notices, reorder items, keep several services.
+- **Songs**: write or paste lyrics (blank line between verses, `[Chorus]` or `[Verse 2]` to name a section), song book and number, search by title, number or words. Import plain-text songs and OpenLyrics `.xml` (exported by OpenLP and others).
+- **Bible**: King James Version included. Type a reference in English or Swahili — `jn 3:16`, `yh 3:16`, `zab 23`, `1 kor 13:4-7`, `Matendo 2:38` — and press Enter to show it. Show a second translation under each verse. Import more Bibles as Zefania XML, USFM (one or more book files) or JSON.
+- **Projector window**: opens full screen on the second screen (projector or TV), text shrinks to fit, Atkinson Hyperlegible for reading from the back of the hall. With only one screen it opens as a preview window.
+- **Live control**: click a slide or press its number; arrows, Space, Page Up / Page Down (presentation clickers work); **B** black screen, **C** clear, **Ctrl K** search. Live and Next previews.
+- **Message**: show a short message over the slide (for example a parent called to the nursery).
+- **Look**: background and text colours.
+- **English first**, with the whole interface in Swahili one click away (EN / SW).
+- **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
+
+## Run it
+
+```bash
+npm install
+npm run dev        # Vite + Electron with hot reload
+npm test           # unit tests (references, songs, Bible import, slides)
+npm run dist:win   # Windows installer in release/ (run on Windows)
+```
+
+`npm run dev` also works in a plain browser at http://localhost:5173 for quick design work; the output then opens in a second tab.
+
+Every push to `main` builds a Windows installer on GitHub Actions (**Actions → Build → Mwanga-Windows-installer**).
+
+## Project layout
+
+```
+electron/main.cjs      windows, displays, file storage, Bible files
+electron/preload.cjs   the only bridge the pages can use (contextIsolation on, sandboxed)
+src/operator/          operator screen (React)
+src/output/            projector screen
+src/lib/               references, songs, slides, Bible import, interface text — plain JS, unit tested
+data/bibles/kjv.json   King James Version (public domain)
+```
+
+Data lives in the user's app-data folder (`%APPDATA%/Mwanga` on Windows): `library.json`, `settings.json`, `session.json`, and `bibles/` for imported Bibles.
+
+## Bibles and songs: licences
+
+- The **KJV** is public domain and ships with the app.
+- The **Swahili Union Version**, **Biblia Habari Njema** and other Bible Society of Tanzania texts are copyrighted. Do not bundle them until ChurchyCodes has written permission. Churches can import a Bible they are licensed to use.
+- The **Swahili Unlocked Literal Bible** (Door43) is CC BY-SA 4.0 and can be imported from its USFM files today.
+- Hymn books (Tenzi za Rohoni, Nyimbo za Kristo and others) and gospel songs need permission from their publishers before Mwanga ships them. Churches type in or import the songs they use.
+
+## Next (V2)
+
+Phone remote over church Wi-Fi, stage screen for the preacher, cloud sync between branches, mobile-money subscriptions, EasyWorship and VideoPsalm import.
