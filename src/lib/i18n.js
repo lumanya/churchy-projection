@@ -1,6 +1,14 @@
 // Interface text. English is the default; Swahili is one click away.
 const T = {
   en: {
+    needInternet: 'Could not download the speech model. Connect this computer to the internet once (about 80 MB), then turn the verse finder on again. After that it works offline.',
+    listen: 'Listen', verseFinder: 'Verse finder', listening: 'listening', loadingModel: 'Starting…', downloadingModel: 'Downloading speech model',
+    listenError: 'Problem — see Listen tab', heard: 'Heard', noVerseYet: 'When the preacher says a verse (for example “John three sixteen” or “Yohana sura ya tatu mstari wa kumi na sita”), it appears here. You decide whether to show it.',
+    listenOn: 'Verse finder on', listenOff: 'Verse finder off', listenDesktopOnly: 'Listening works in the Mwanga desktop app.',
+    listenHelp: 'Mwanga listens to the sermon and suggests the Bible verses the preacher mentions. Nothing is shown until you press Show (or V).',
+    preacherLanguage: 'Preacher’s language', autoDetect: 'Detect automatically', microphone: 'Microphone', defaultMic: 'Default microphone',
+    accuracy: 'Accuracy', qualityFast: 'Fast (most computers) · about 80 MB download', qualityBetter: 'Better (newer computers) · about 250 MB download',
+    listenPrivacy: 'Speech is turned into text on this computer and is never sent anywhere. The internet is used once, to download the speech model. For best results, connect the sound desk to the computer’s microphone input.',
     preacher: 'Preacher', phone: 'Phone', messageToPreacher: 'Message to the preacher', stagePlaceholder: 'e.g. 5 minutes left',
     stageHelp: 'The preacher’s screen shows the slide now and next, the time and your messages. Only the preacher sees it.',
     showing: 'Showing', start: 'Start', pause: 'Pause', reset: 'Reset', countdown: 'Count down',
@@ -34,6 +42,14 @@ const T = {
     importedBible: 'Bible added', importFailed: 'Could not import', minutes: 'items'
   },
   sw: {
+    needInternet: 'Imeshindikana kupakua modeli ya sauti. Unganisha kompyuta hii na intaneti mara moja (takriban MB 80), kisha washa kitafuta mistari tena. Baada ya hapo kinafanya kazi bila intaneti.',
+    listen: 'Sikiliza', verseFinder: 'Kitafuta mistari', listening: 'inasikiliza', loadingModel: 'Inaanza…', downloadingModel: 'Inapakua modeli ya sauti',
+    listenError: 'Tatizo — tazama kichupo cha Sikiliza', heard: 'Imesikika', noVerseYet: 'Mhubiri akitaja mstari (mf. “Yohana sura ya tatu mstari wa kumi na sita”), utaonekana hapa. Wewe ndiye unaamua kuuonyesha.',
+    listenOn: 'Kitafuta mistari kimewashwa', listenOff: 'Kitafuta mistari kimezimwa', listenDesktopOnly: 'Kusikiliza kunafanya kazi kwenye programu ya Mwanga ya kompyuta.',
+    listenHelp: 'Mwanga inasikiliza mahubiri na kupendekeza mistari ya Biblia anayoitaja mhubiri. Hakuna kinachoonyeshwa hadi ubonyeze Onyesha (au V).',
+    preacherLanguage: 'Lugha ya mhubiri', autoDetect: 'Tambua yenyewe', microphone: 'Kipaza sauti', defaultMic: 'Kipaza sauti cha kawaida',
+    accuracy: 'Usahihi', qualityFast: 'Haraka (kompyuta nyingi) · takriban MB 80', qualityBetter: 'Bora zaidi (kompyuta mpya) · takriban MB 250',
+    listenPrivacy: 'Sauti inageuzwa kuwa maandishi kwenye kompyuta hii na haitumwi popote. Intaneti inatumika mara moja tu kupakua modeli. Kwa matokeo bora, unganisha mixer ya sauti kwenye kompyuta.',
     preacher: 'Mhubiri', phone: 'Simu', messageToPreacher: 'Ujumbe kwa mhubiri', stagePlaceholder: 'mf. Dakika 5 zimebaki',
     stageHelp: 'Skrini ya mhubiri inaonyesha slaidi ya sasa na inayofuata, muda na jumbe zako. Ni mhubiri tu anayeiona.',
     showing: 'Inaonyeshwa', start: 'Anza', pause: 'Simamisha', reset: 'Anza upya', countdown: 'Hesabu kurudi',

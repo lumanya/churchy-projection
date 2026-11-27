@@ -181,3 +181,12 @@ body.is-remote { overflow: auto; }
 .rm-item.on { background: var(--raise); border-left-color: var(--accent); }
 .rm-slide-text { white-space: pre-line; font-weight: 400; font-size: 13px; color: var(--soft); }
 .stage-back { position: fixed; top: 8px; left: 8px; z-index: 5; font: 500 12px var(--mono); color: #8F897F; text-decoration: none; padding: 6px 8px; }
+
+/* ---------- verse finder ---------- */
+.finder { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; background: #241A14; }
+.finder .big { height: 46px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.heard { font-size: 12px; color: var(--soft); font-style: italic; }
+kbd.on-accent { color: var(--on-accent); border: 1px solid rgba(26,10,0,.4); border-radius: 3px; padding: 0 4px; }
+.mic-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7BD88F; margin-right: 4px; vertical-align: middle; }
+.meter { height: 6px; background: var(--raise); border-radius: 3px; overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--accent); transition: width .1s linear; }

@@ -56,6 +56,12 @@ contextBridge.exposeInMainWorld('mwanga', {
     set: (live) => ipcRenderer.send('live:set', live),
     onUpdate: on('live:update')
   },
+  listen: {
+    start: (quality) => ipcRenderer.invoke('listen:start', quality),
+    stop: () => ipcRenderer.invoke('listen:stop'),
+    audio: (samples, language) => ipcRenderer.send('listen:audio', samples, language),
+    onEvent: on('listen:event')
+  },
   openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
   findEasyWorship: () => ipcRenderer.invoke('easyworship:find')
 });

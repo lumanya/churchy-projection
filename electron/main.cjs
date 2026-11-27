@@ -1,7 +1,7 @@
 // Mwanga — Electron main process.
 // Windows: the operator screen, the projector output, and the preacher's (stage) screen.
 // Also: file storage, Bible files, the phone-remote server on the church Wi-Fi, and updates.
-const { app, BrowserWindow, ipcMain, screen, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -261,6 +261,29 @@ function setupUpdates() {
   setInterval(check, 4 * 60 * 60 * 1000);
 }
 
+// ---------- listening to the preacher ----------
+// Whisper runs in a separate utility process on this PC. Audio never leaves the computer;
+// the internet is only used once, to download the speech model.
+let listener = null;
+let listenerReady = false;
+function startListener(quality) {
+  stopListener();
+  if (process.env.MWANGA_SCREENSHOT && !process.env.MWANGA_LISTEN_REAL) return true; // the check below feeds pretend speech
+  listenerReady = false;
+  listener = utilityProcess.fork(path.join(__dirname, 'listener.mjs'), [], { serviceName: 'Mwanga listener' });
+  listener.on('message', (m) => { if (m.type === 'ready') listenerReady = true; send(operator, 'listen:event', m); });
+  listener.on('exit', (code) => { listener = null; listenerReady = false; send(operator, 'listen:event', { type: 'stopped', code }); });
+  listener.postMessage({ type: 'init', quality, cacheDir: path.join(userDir(), 'models') });
+  return true;
+}
+function stopListener() { if (listener) { listener.kill(); listener = null; listenerReady = false; } }
+
+ipcMain.handle('listen:start', (_e, quality) => startListener(quality === 'better' ? 'better' : 'fast'));
+ipcMain.handle('listen:stop', () => { stopListener(); return true; });
+ipcMain.on('listen:audio', (_e, samples, language) => {
+  if (listener && listenerReady && samples && samples.length <= 16000 * 12) listener.postMessage({ type: 'audio', samples, language });
+});
+
 // ---------- IPC ----------
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('store:load', () => ({
@@ -384,6 +407,31 @@ async function screenshotRun(dir) {
   await js(`(() => { const i = document.querySelector('#stage-msg'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, '5 minutes left'); i.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#stage-msg-show').click(); document.querySelector('#timer-start').click(); })()`);
   await wait(2200);
   await snap(operator, 'operator-stage.png'); await snap(stage, 'stage.png');
+  // verse finder: pretend the preacher said a verse in Swahili
+  await js(`document.querySelector('[data-tab="listen"]').click()`); await wait(300);
+  await js(`document.querySelector('#listen-toggle').click()`); await wait(500);
+  send(operator, 'listen:event', { type: 'ready', model: 'test' });
+  send(operator, 'listen:event', { type: 'text', text: 'Ndugu zangu, tusome Yohana sura ya tatu mstari wa kumi na sita', ms: 900 });
+  await wait(800);
+  await snap(operator, 'operator-listen.png');
+  // first a different slide, so the check proves the suggestion changes the screen
+  await press('Home'); await js(`document.querySelectorAll('.svc-main')[1].click()`); await wait(200);
+  await js(`document.querySelectorAll('.slide')[0].click()`); await wait(500);
+  const before = await output.webContents.executeJavaScript('document.body.innerText');
+  await js(`document.querySelector('#suggest-show').click()`); await wait(900);
+  const after = await output.webContents.executeJavaScript('document.body.innerText');
+  fs.writeFileSync(path.join(dir, 'listen-check.json'), JSON.stringify({ before, after }));
+  await snap(output, 'output-from-listen.png');
+  // start the real speech engine once and record its first message (proves it loads in this build)
+  process.env.MWANGA_LISTEN_REAL = '1';
+  const probe = await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve({ type: 'timeout' }), 20000);
+    const p = utilityProcess.fork(path.join(__dirname, 'listener.mjs'), [], { serviceName: 'Mwanga listener probe' });
+    p.on('message', (m) => { clearTimeout(timer); p.kill(); resolve(m); });
+    p.on('exit', (code) => { clearTimeout(timer); resolve({ type: 'exit', code }); });
+    p.postMessage({ type: 'init', quality: 'fast', cacheDir: path.join(userDir(), 'models') });
+  });
+  fs.writeFileSync(path.join(dir, 'listener-probe.json'), JSON.stringify(probe));
   // phone tab and the remote page as a phone would load it
   await js(`document.querySelector('[data-tab="phone"]').click()`); await wait(300);
   await js(`document.querySelector('#remote-toggle').click()`); await wait(1500);
@@ -398,10 +446,14 @@ async function screenshotRun(dir) {
   await phone.webContents.executeJavaScript(`document.querySelector('#rm-next').click()`);
   await wait(1200);
   await snap(phone, 'phone-after-next.png'); await snap(output, 'output-after-phone.png');
+  fs.writeFileSync(path.join(dir, 'phone-check.json'), JSON.stringify({ output: await output.webContents.executeJavaScript('document.body.innerText') }));
   app.quit();
 }
 
 app.whenReady().then(() => {
+  // only the operator screen may use the microphone (for the verse finder)
+  session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(permission === 'media' && !!operator && wc === operator.webContents));
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && !!operator && wc === operator.webContents);
   createOperator();
   setupUpdates();
   if (readJSON('settings.json', {}).remoteOn) startRemote();
@@ -419,4 +471,4 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => { stopRemote(); app.quit(); });
+app.on('window-all-closed', () => { stopRemote(); stopListener(); app.quit(); });

@@ -8,6 +8,8 @@ import Library from './Library.jsx';
 import { SongEditor, NoticeEditor, ServiceEditor } from './Editors.jsx';
 import { Mini, Logo } from './Mini.jsx';
 import { formatTimer } from '../stage/timer.js';
+import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
+import { useMicrophone, listMicrophones } from './useMicrophone.js';
 
 export default function Operator() {
   const [ready, setReady] = useState(false);
@@ -35,6 +37,12 @@ export default function Operator() {
   const [qr, setQr] = useState('');
   const [update, setUpdate] = useState({ state: 'idle' });
   const [version, setVersion] = useState('');
+  const [listenOn, setListenOn] = useState(false);
+  const [listenStatus, setListenStatus] = useState({ state: 'off' });
+  const [heard, setHeard] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [mics, setMics] = useState([]);
+  const listenRef = useRef(null);
   const searchRef = useRef(null);
   const commandRef = useRef(null);
   const t = makeT(settings?.lang);
@@ -64,7 +72,8 @@ export default function Operator() {
     const off4 = api.remote.onInfo(setRemote);
     const off5 = api.update.onStatus(setUpdate);
     const off6 = api.remote.onCommand((c) => commandRef.current && commandRef.current(c));
-    return () => { off1(); off2(); off3(); off4(); off5(); off6(); };
+    const off7 = api.listen.onEvent((m) => listenRef.current && listenRef.current(m));
+    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); };
   }, []);
 
   // ---------- load the Bibles we need ----------
@@ -134,6 +143,42 @@ export default function Operator() {
     if (remote.on && remote.urls[0]) api.remote.qr(remote.urls[0]).then(setQr);
     else setQr('');
   }, [remote.on, remote.urls[0]]);
+
+  // ---------- verse finder: microphone → speech engine → references ----------
+  const { level: micLevel, error: micError } = useMicrophone({
+    enabled: listenOn && listenStatus.state === 'ready',
+    deviceId: settings?.micId,
+    onAudio: (samples) => api.listen.audio(samples, settings.listenLang || 'auto')
+  });
+  listenRef.current = (m) => {
+    if (m.type === 'progress') {
+      if (m.status === 'progress' && m.total > 1e6) setListenStatus({ state: 'downloading', percent: Math.round(m.progress || 0), file: m.file });
+      else if (m.status === 'initiate' || m.status === 'download') setListenStatus((st) => (st.state === 'downloading' ? st : { state: 'loading' }));
+    } else if (m.type === 'ready') setListenStatus({ state: 'ready' });
+    else if (m.type === 'error') {
+      const offline = m.during === 'init' && /fetch|network|ENOTFOUND|EAI_AGAIN|ECONN|getaddrinfo|timed? ?out/i.test(m.message || '');
+      setListenStatus({ state: 'error', message: offline ? t('needInternet') : m.message });
+      if (m.during === 'init') setListenOn(false);
+    }
+    else if (m.type === 'stopped') setListenStatus((st) => (st.state === 'error' ? st : { state: 'off' }));
+    else if (m.type === 'text' && m.text) {
+      setHeard(m.text);
+      const main = bibles[settings.mainBible];
+      const refs = validReferences(findSpokenReferences(m.text), main);
+      if (!refs.length) return;
+      const now = Date.now();
+      setSuggestions((list) => {
+        let next = list.filter((x) => now - x.at < 10 * 60000);
+        for (const r of refs) {
+          const key = `${r.book} ${r.chapter}:${r.from || ''}-${r.to || ''}`;
+          if (next.some((x) => x.key === key && now - x.at < 90000)) continue; // said again within 90 s: same suggestion
+          next = [{ key, at: now, ref: { book: r.book, chapter: r.chapter, from: r.from, to: r.to }, title: formatReference(r, main && main.lang === 'sw' ? 'sw' : 'en') }, ...next.filter((x) => x.key !== key)];
+        }
+        return next.slice(0, 6);
+      });
+    }
+  };
+  useEffect(() => { if (rightTab === 'listen') listMicrophones().then(setMics); }, [rightTab, listenStatus.state]);
 
   // the timer on this screen ticks while it runs
   useEffect(() => {
@@ -219,6 +264,7 @@ export default function Operator() {
       else if (e.key.toLowerCase() === 'c') setLive(null);
       else if (/^[1-9]$/.test(e.key) && slides[+e.key - 1]) goLive(selected, +e.key - 1);
       else if (e.key === 'Escape') setMessageOn(false);
+      else if (e.key.toLowerCase() === 'v' && suggestions[0]) showSuggestion(suggestions[0]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -245,6 +291,14 @@ export default function Operator() {
   if (!ready) return <div className="boot"><Logo size={40} /></div>;
 
   const timerView = formatTimer(timer);
+  const showSuggestion = (sg) => sg && addItem({ type: 'bible', ref: { ...sg.ref, bibleId: settings.mainBible }, title: sg.title }, true);
+  const toggleListen = async () => {
+    if (listenOn) { setListenOn(false); setListenStatus({ state: 'off' }); await api.listen.stop(); return; }
+    setListenOn(true);
+    setListenStatus({ state: 'loading' });
+    const ok = await api.listen.start(settings.listenQuality || 'fast');
+    if (!ok) setListenStatus({ state: 'error', message: t('listenDesktopOnly') });
+  };
   const toggleStage = async () => {
     if (stageOpen) { await api.stage.close(); setSetting({ stageOpen: false }); }
     else { await api.stage.open(); setStageOpen(true); setSetting({ stageOpen: true }); }
@@ -367,8 +421,31 @@ export default function Operator() {
             <Mini slide={nextSlide} theme={settings.theme} />
           </div>
 
+          {listenOn && (
+            <div className="finder">
+              <div className="row between">
+                <strong>{t('verseFinder')}</strong>
+                <span className="small muted">
+                  {listenStatus.state === 'ready' && <><span className="mic-dot" style={{ opacity: 0.35 + micLevel * 0.65 }} /> {t('listening')}</>}
+                  {listenStatus.state === 'loading' && t('loadingModel')}
+                  {listenStatus.state === 'downloading' && `${t('downloadingModel')} ${listenStatus.percent || 0}%`}
+                  {listenStatus.state === 'error' && <span className="accent">{t('listenError')}</span>}
+                </span>
+              </div>
+              {heard && <div className="heard">{t('heard')}: “…{heard.slice(-120)}”</div>}
+              {suggestions[0] ? (
+                <button type="button" id="suggest-show" className="primary big" onClick={() => showSuggestion(suggestions[0])}>{t('show')} {suggestions[0].title} <kbd className="on-accent">V</kbd></button>
+              ) : <div className="muted small">{t('noVerseYet')}</div>}
+              {suggestions.length > 1 && (
+                <div className="row">
+                  {suggestions.slice(1, 5).map((sg) => <button key={sg.key} type="button" className="sm" onClick={() => showSuggestion(sg)}>{sg.title}</button>)}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="tabs right-tabs" role="tablist">
-            {[['projector', t('projector')], ['stage', t('preacher')], ['phone', t('phone')]].map(([k, label]) => (
+            {[['projector', t('projector')], ['stage', t('preacher')], ['phone', t('phone')], ['listen', t('listen')]].map(([k, label]) => (
               <button key={k} type="button" role="tab" data-tab={k} aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>{label}</button>
             ))}
           </div>
@@ -441,6 +518,40 @@ export default function Operator() {
                 </select>
               </label>
               <p className="muted small" style={{ margin: 0 }}>{t('stageTablet')}</p>
+            </div>
+          )}
+
+          {rightTab === 'listen' && (
+            <div className="panel">
+              <div className="row between">
+                <strong>{listenOn ? t('listenOn') : t('listenOff')}</strong>
+                <button type="button" id="listen-toggle" className={listenOn ? '' : 'primary'} onClick={toggleListen}>{listenOn ? t('turnOff') : t('turnOn')}</button>
+              </div>
+              <p className="muted small" style={{ margin: 0 }}>{t('listenHelp')}</p>
+              <label className="field"><span>{t('preacherLanguage')}</span>
+                <select value={settings.listenLang || 'auto'} onChange={(e) => setSetting({ listenLang: e.target.value })}>
+                  <option value="sw">Kiswahili</option>
+                  <option value="en">English</option>
+                  <option value="auto">{t('autoDetect')}</option>
+                </select>
+              </label>
+              <label className="field"><span>{t('microphone')}</span>
+                <select value={settings.micId || ''} onChange={(e) => setSetting({ micId: e.target.value })}>
+                  <option value="">{t('defaultMic')}</option>
+                  {mics.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+              </label>
+              {listenOn && listenStatus.state === 'ready' && <div className="meter" aria-label={t('microphone')}><span style={{ width: `${Math.round(micLevel * 100)}%` }} /></div>}
+              {micError && <p className="accent small" style={{ margin: 0 }}>{micError}</p>}
+              <label className="field"><span>{t('accuracy')}</span>
+                <select value={settings.listenQuality || 'fast'} disabled={listenOn} onChange={(e) => setSetting({ listenQuality: e.target.value })}>
+                  <option value="fast">{t('qualityFast')}</option>
+                  <option value="better">{t('qualityBetter')}</option>
+                </select>
+              </label>
+              {listenStatus.state === 'downloading' && <div className="meter"><span style={{ width: `${listenStatus.percent || 0}%` }} /></div>}
+              {listenStatus.state === 'error' && <p className="accent small" style={{ margin: 0 }}>{listenStatus.message}</p>}
+              <p className="muted small" style={{ margin: 0 }}>{t('listenPrivacy')}</p>
             </div>
           )}
 

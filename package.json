@@ -34,6 +34,7 @@
     "wait-on": "^9.5.1"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "electron-updater": "^6.8.11",
     "qrcode": "^1.5.4"
   },
@@ -52,7 +53,14 @@
       "electron/**",
       "data/**",
       "package.json",
-      "build/icon.png"
+      "build/icon.png",
+      "!**/node_modules/onnxruntime-web/**",
+      "!**/node_modules/@huggingface/transformers/dist/*.wasm",
+      "!**/node_modules/@huggingface/transformers/dist/transformers.js",
+      "!**/node_modules/@huggingface/transformers/dist/transformers.min.js",
+      "!**/node_modules/@huggingface/transformers/dist/*.map",
+      "!**/node_modules/onnxruntime-node/bin/napi-v*/darwin/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v*/*/arm64/**"
     ],
     "win": {
       "target": [
@@ -63,7 +71,10 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "files": [
+        "!**/node_modules/onnxruntime-node/bin/napi-v*/linux/**"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -73,7 +84,10 @@
     "linux": {
       "target": "AppImage",
       "category": "Office",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "files": [
+        "!**/node_modules/onnxruntime-node/bin/napi-v*/win32/**"
+      ]
     },
     "publish": [
       {
@@ -82,6 +96,11 @@
         "repo": "churchy-projection",
         "releaseType": "release"
       }
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**"
     ]
   },
   "repository": {
