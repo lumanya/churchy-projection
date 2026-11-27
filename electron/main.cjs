@@ -399,50 +399,81 @@ ipcMain.handle('media:saveThumb', (_e, id, dataUrl) => {
 ipcMain.on('video:progress', (_e, p) => send(operator, 'video:progress', p));
 
 // ---------- Ask AI: find a verse from what someone remembers of its meaning ----------
-// The API key is kept encrypted with Windows' own protection (safeStorage), and only this process uses it.
+// Works with Claude, ChatGPT, Gemini or any OpenAI-compatible service (see ai.cjs).
+// Keys are kept encrypted with Windows' own protection (safeStorage), and only this process uses them.
 // Only the words the operator typed are sent. The AI returns references; Mwanga shows its own Bible text.
-const aiKeyFile = () => path.join(userDir(), 'ai-key.bin');
-function readAiKey() {
+const AI = require('./ai.cjs');
+const aiKeysFile = () => path.join(userDir(), 'ai-keys.bin');
+const oldAiKeyFile = () => path.join(userDir(), 'ai-key.bin'); // 0.8.0 kept one Anthropic key here
+function readAiKeys() {
   try {
-    const buf = fs.readFileSync(aiKeyFile());
-    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
-  } catch (_) { return ''; }
+    const buf = fs.readFileSync(aiKeysFile());
+    return JSON.parse(safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8')) || {};
+  } catch (_) { /* none yet */ }
+  try {
+    const buf = fs.readFileSync(oldAiKeyFile());
+    const k = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
+    return k ? { anthropic: k } : {};
+  } catch (_) { return {}; }
 }
-ipcMain.handle('ai:status', () => ({ hasKey: !!readAiKey(), encrypted: safeStorage.isEncryptionAvailable() }));
-ipcMain.handle('ai:setKey', (_e, key) => {
-  const k = String(key || '').trim();
-  if (!k) { try { fs.unlinkSync(aiKeyFile()); } catch (_) { /* none */ } return { hasKey: false }; }
+function writeAiKeys(keys) {
   fs.mkdirSync(userDir(), { recursive: true });
-  fs.writeFileSync(aiKeyFile(), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(k) : Buffer.from(k, 'utf8'));
-  return { hasKey: true };
+  const text = JSON.stringify(keys);
+  fs.writeFileSync(aiKeysFile(), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(text) : Buffer.from(text, 'utf8'));
+  try { fs.unlinkSync(oldAiKeyFile()); } catch (_) { /* already gone */ }
+}
+function aiStatus() {
+  const keys = readAiKeys();
+  return { keys: Object.fromEntries(Object.keys(AI.PROVIDERS).map((id) => [id, !!keys[id]])), providers: AI.providerList(), encrypted: safeStorage.isEncryptionAvailable() };
+}
+ipcMain.handle('ai:status', () => aiStatus());
+ipcMain.handle('ai:setKey', (_e, provider, key) => {
+  if (!AI.PROVIDERS[provider]) return aiStatus();
+  const keys = readAiKeys();
+  const k = String(key || '').trim();
+  if (k) keys[provider] = k; else delete keys[provider];
+  writeAiKeys(keys);
+  return aiStatus();
 });
 
-const AI_SYSTEM = 'You identify Bible verses. The user types what they remember of a Bible verse: some of its words, a paraphrase, or a description of what it says, in English or Swahili. Reply with only a JSON array of up to 5 references, best first, written as "Book Chapter:Verse" or "Book Chapter:Verse-Verse" with English book names, for example ["Jeremiah 29:11", "Romans 8:28"]. If nothing fits, reply [].';
-
-ipcMain.handle('ai:findVerses', async (_e, query, model) => {
-  const key = readAiKey();
-  if (!key) return { error: 'nokey' };
-  const q = String(query || '').slice(0, 400);
+async function aiCall(cfg, build, seconds) {
+  const { id, p, base } = AI.resolve(cfg);
+  const key = readAiKeys()[id] || '';
+  if (!base) return { error: 'nourl' };
+  if (!key && !p.keyOptional) return { error: 'nokey' };
+  const { url, init } = build(key);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), seconds * 1000);
   try {
-    // MWANGA_AI_URL lets the automatic check use a stand-in server
-    const res = await net.fetch(process.env.MWANGA_AI_URL || 'https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: model || 'claude-haiku-5-5', max_tokens: 200, system: AI_SYSTEM, messages: [{ role: 'user', content: q }] })
-    });
-    if (res.status === 401 || res.status === 403) return { error: 'badkey' };
-    if (!res.ok) return { error: 'http', status: res.status };
-    const data = await res.json();
-    const text = (data.content || []).map((c) => c.text || '').join('');
-    const m = /\[[\s\S]*\]/.exec(text);
-    const refs = m ? JSON.parse(m[0]) : [];
-    return { refs: Array.isArray(refs) ? refs.filter((r) => typeof r === 'string').slice(0, 5) : [] };
+    const res = await net.fetch(url, { ...init, signal: controller.signal });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return { error: AI.errorKind(res.status, body), status: res.status };
+    }
+    return { data: await res.json() };
   } catch (e) {
     return { error: controller.signal.aborted ? 'timeout' : 'offline' };
   } finally { clearTimeout(timer); }
+}
+
+ipcMain.handle('ai:findVerses', async (_e, query, cfg) => {
+  // 0.8.0 passed only a model name
+  const c = typeof cfg === 'string' || !cfg ? { provider: 'anthropic', model: cfg || '' } : cfg;
+  const r = await aiCall(c, (key) => AI.verseRequest(c, key, query), 30);
+  if (r.error) return r;
+  return { refs: AI.parseRefs(AI.answerText(r.data)) };
+});
+// the page where each service hands out keys; only these fixed addresses are opened
+ipcMain.handle('ai:openKeyPage', (_e, provider) => {
+  const p = AI.PROVIDERS[provider];
+  if (!p || !p.keyUrl) return false;
+  shell.openExternal(p.keyUrl);
+  return true;
+});
+ipcMain.handle('ai:models', async (_e, cfg) => {
+  const r = await aiCall(cfg || {}, (key) => AI.modelsRequest(cfg || {}, key), 15);
+  if (r.error) return r;
+  return AI.modelList(AI.resolve(cfg).id, r.data);
 });
 
 // ---------- IPC ----------
@@ -715,23 +746,34 @@ async function screenshotRun(dir) {
   }
   // finding verses by their words, and Ask AI (with a stand-in AI server)
   {
+    const seen = [];
     const fake = http.createServer((req, res) => {
       let body = '';
       req.on('data', (c) => { body += c; });
       req.on('end', () => {
-        const ok = req.headers['x-api-key'] === 'test-key-123';
-        res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ content: [{ type: 'text', text: 'Here you go: ["Jeremiah 29:11", "Romans 8:28", "Hezekiah 4:2"]' }], sent: body.length }));
+        const reply = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+        const b = body ? JSON.parse(body) : {};
+        seen.push({ path: req.url, model: b.model, key: req.headers['x-api-key'] || req.headers.authorization || '', maxCompletion: b.max_completion_tokens || null });
+        if (req.url.startsWith('/v1/messages')) {
+          if (req.headers['x-api-key'] !== 'test-key-123') return reply(401, { error: 'bad key' });
+          return reply(200, { content: [{ type: 'text', text: 'Here you go: ["Jeremiah 29:11", "Romans 8:28", "Hezekiah 4:2"]' }] });
+        }
+        const local = b.model === 'llama3.2' || req.method === 'GET' && !req.headers.authorization;
+        if (!local && req.headers.authorization !== 'Bearer sk-openai-1') return reply(401, { error: 'bad key' });
+        if (req.url.startsWith('/v1/models')) return reply(200, { data: [{ id: 'gpt-6.2-astra' }, { id: 'gpt-6-luna' }, { id: 'whisper-1' }, { id: 'llama3.2' }] });
+        const user = (b.messages || []).find((m) => m.role === 'user') || {};
+        const refs = /gave his only son/.test(user.content || '') ? '["John 3:16"]' : '["Jeremiah 29:11", "Psalm 23:1"]';
+        return reply(200, { choices: [{ message: { role: 'assistant', content: `<think>maybe [1]</think>${refs}` } }] });
       });
     });
     await new Promise((r) => fake.listen(0, '127.0.0.1', r));
-    process.env.MWANGA_AI_URL = `http://127.0.0.1:${fake.address().port}/v1/messages`;
+    process.env.MWANGA_AI_BASE = `http://127.0.0.1:${fake.address().port}/v1`;
     const typeIn = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
     const outText = () => output.webContents.executeJavaScript('(document.querySelector(".out-text") || {}).innerText || ""');
     // save a key in Library → Bible
     await js(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'Bible').click()`); await wait(300);
-    await typeIn('.ai-box input', 'test-key-123'); await wait(100);
-    await js(`[...document.querySelectorAll('.ai-box button')].find((b) => b.textContent === 'Save').click()`); await wait(500);
+    await typeIn('#ai-key', 'test-key-123'); await wait(100);
+    await js(`document.querySelector('#ai-save').click()`); await wait(500);
     // modern words + Enter
     await typeIn('.search input', 'God loved the world so much that he gave his one and only son'); await wait(500);
     const wordResults = await js(`[...document.querySelectorAll('.results .result strong')].map((s) => s.textContent)`);
@@ -745,7 +787,26 @@ async function screenshotRun(dir) {
     const aiTitles = await js(`(() => { const h = [...document.querySelectorAll('.result-head')].find((x) => x.textContent.includes('AI')); const out = []; let n = h && h.nextElementSibling; while (n && !n.classList.contains('result-head')) { const s = n.querySelector('strong'); if (s) out.push(s.textContent); n = n.nextElementSibling; } return out; })()`);
     await js(`[...document.querySelectorAll('.results .result')].find((r) => (r.querySelector('strong') || {}).textContent === 'Jeremiah 29:11').querySelector('.primary').click()`); await wait(900);
     const afterAi = await outText();
-    fs.writeFileSync(path.join(dir, 'verse-search-check.json'), JSON.stringify({ wordResults, afterEnter, before, aiTitles, afterAi }, null, 1));
+    // ChatGPT: choose it, save its key, press Test (which also picks the recommended model)
+    const pickService = (id) => js(`(() => { const s = document.querySelector('#ai-provider'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(id)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    const testResult = async () => { await js(`document.querySelector('#ai-test').click()`); await wait(1500); return js(`({ text: (document.querySelector('#ai-test-result') || {}).textContent || '', model: document.querySelector('#ai-model').value, options: [...document.querySelectorAll('datalist option')].map((o) => o.value) })`); };
+    await pickService('openai'); await wait(300);
+    const services = await js(`[...document.querySelectorAll('#ai-provider option')].map((o) => o.textContent)`);
+    await typeIn('#ai-key', 'sk-openai-1'); await wait(100);
+    await js(`document.querySelector('#ai-save').click()`); await wait(500);
+    const openaiTest = await testResult();
+    await snap(operator, 'operator-ai-setup.png');
+    await typeIn('.search input', 'plans to prosper you and not harm you'); await wait(500);
+    await js(`document.querySelector('#ask-ai').click()`); await wait(1500);
+    const openaiTitles = await js(`[...document.querySelectorAll('.results .result strong')].map((s) => s.textContent)`);
+    // a model on this computer (Ollama): an address and a model name, no key
+    await pickService('custom'); await wait(300);
+    await typeIn('#ai-base', 'localhost:11434/v1'); await wait(100);
+    await typeIn('#ai-model', 'llama3.2'); await wait(100);
+    const customTest = await testResult();
+    await snap(operator, 'operator-ai-custom.png');
+    const keys = (await js(`window.mwanga.ai.status()`)).keys;
+    fs.writeFileSync(path.join(dir, 'verse-search-check.json'), JSON.stringify({ wordResults, afterEnter, before, aiTitles, afterAi, services, openaiTest, openaiTitles, customTest, keys, keysFileExists: fs.existsSync(aiKeysFile()), oldKeyFileGone: !fs.existsSync(oldAiKeyFile()), seen }, null, 1));
     fake.close();
   }
   app.quit();

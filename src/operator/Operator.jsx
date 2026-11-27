@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, inElectron } from '../bridge.js';
 import { makeT } from '../lib/i18n.js';
+import { aiConfig, aiReady } from '../lib/aiConfig.js';
 import { defaultLibrary, defaultSettings, uid } from '../lib/defaults.js';
 import { slidesFor } from '../lib/slides.js';
 import { parseReference, formatReference, getVerses } from '../lib/bibleRef.js';
@@ -55,7 +56,7 @@ export default function Operator() {
   const followRef = useRef({ lastMoveAt: 0, left: null });
   const verseIndexes = useRef({});            // bible id → search index, built once
   const [indexReady, setIndexReady] = useState(0);
-  const [ai, setAi] = useState({ hasKey: false });
+  const [ai, setAi] = useState({ keys: {}, providers: [] });
   const [aiResult, setAiResult] = useState(null); // { query, loading, verses, error }
   const searchRef = useRef(null);
   const commandRef = useRef(null);
@@ -391,11 +392,12 @@ export default function Operator() {
     return { ref: { ...ref, bibleId: settings.mainBible }, title: formatReference(ref, main && main.lang === 'sw' ? 'sw' : 'en'), preview: vs.map((v) => v.text).join(' ') };
   }
 
+  const aiOn = aiReady(ai, settings);
   const askAi = async () => {
     const q = query.trim();
     if (!q) return;
     setAiResult({ query: q, loading: true });
-    const r = await api.ai.findVerses(q, settings.aiModel);
+    const r = await api.ai.findVerses(q, aiConfig(settings));
     if (r.error) { setAiResult({ query: q, error: r.error }); return; }
     // only references that exist in our Bible; the text always comes from Mwanga, never from the AI
     const main = bibles[settings.mainBible];
@@ -520,8 +522,8 @@ export default function Operator() {
               )}
               {!results.verse && looksLikeVerseWords(query) && !(aiResult && aiResult.query === query.trim() && !aiResult.error) && (
                 <div className={'result' + (results.verses.length ? '' : ' ai-first')}>
-                  <span className="muted small">{ai.hasKey ? t('aiOffer') : t('aiSetupHint')}</span>
-                  {ai.hasKey && <button type="button" id="ask-ai" className="sm" onClick={askAi} disabled={aiResult && aiResult.loading}>✦ {t('askAi')}</button>}
+                  <span className="muted small">{aiOn ? t('aiOffer') : t('aiSetupHint')}</span>
+                  {aiOn && <button type="button" id="ask-ai" className="sm" onClick={askAi} disabled={aiResult && aiResult.loading}>✦ {t('askAi')}</button>}
                 </div>
               )}
               {!results.verse && !results.songs.length && !results.verses.length && !looksLikeVerseWords(query) && <div className="result muted">{t('notFound')}</div>}

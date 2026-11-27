@@ -14,6 +14,13 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.9: Ask AI with any AI service
+
+- **Library → Bible → Ask AI** now lets you choose the service: **Claude (Anthropic)**, **ChatGPT (OpenAI)**, **Gemini (Google)**, or **Other** for any OpenAI-compatible service (OpenRouter, Groq, DeepSeek, Mistral, or Ollama / LM Studio running on the same computer, which works without internet).
+- Each service keeps its own key, encrypted on this PC. **Get a key** opens the right page. **Test** checks the key and credit, lists the models the service offers, and picks a fast, low-cost one.
+- A ChatGPT Plus or Claude Pro subscription does not include API use. The key comes from the service's developer site (platform.openai.com, console.anthropic.com, aistudio.google.com) and is billed separately per use. Gemini has a free tier.
+- Clearer messages when an account has no credit or a model name is wrong. A key saved in 0.8 carries over.
+
 ## New in 0.8: find a verse from its words
 
 Type what people remember into the search box (Ctrl K):
