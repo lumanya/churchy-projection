@@ -1,7 +1,7 @@
 // Mwanga — Electron main process.
 // Windows: the operator screen, the projector output, and the preacher's (stage) screen.
 // Also: file storage, Bible files, the phone-remote server on the church Wi-Fi, and updates.
-const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess, protocol, safeStorage, net } = require('electron');
 const { Readable } = require('node:stream');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -398,6 +398,53 @@ ipcMain.handle('media:saveThumb', (_e, id, dataUrl) => {
 // the projector reports how far a video has played; the operator screen shows it
 ipcMain.on('video:progress', (_e, p) => send(operator, 'video:progress', p));
 
+// ---------- Ask AI: find a verse from what someone remembers of its meaning ----------
+// The API key is kept encrypted with Windows' own protection (safeStorage), and only this process uses it.
+// Only the words the operator typed are sent. The AI returns references; Mwanga shows its own Bible text.
+const aiKeyFile = () => path.join(userDir(), 'ai-key.bin');
+function readAiKey() {
+  try {
+    const buf = fs.readFileSync(aiKeyFile());
+    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
+  } catch (_) { return ''; }
+}
+ipcMain.handle('ai:status', () => ({ hasKey: !!readAiKey(), encrypted: safeStorage.isEncryptionAvailable() }));
+ipcMain.handle('ai:setKey', (_e, key) => {
+  const k = String(key || '').trim();
+  if (!k) { try { fs.unlinkSync(aiKeyFile()); } catch (_) { /* none */ } return { hasKey: false }; }
+  fs.mkdirSync(userDir(), { recursive: true });
+  fs.writeFileSync(aiKeyFile(), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(k) : Buffer.from(k, 'utf8'));
+  return { hasKey: true };
+});
+
+const AI_SYSTEM = 'You identify Bible verses. The user types what they remember of a Bible verse: some of its words, a paraphrase, or a description of what it says, in English or Swahili. Reply with only a JSON array of up to 5 references, best first, written as "Book Chapter:Verse" or "Book Chapter:Verse-Verse" with English book names, for example ["Jeremiah 29:11", "Romans 8:28"]. If nothing fits, reply [].';
+
+ipcMain.handle('ai:findVerses', async (_e, query, model) => {
+  const key = readAiKey();
+  if (!key) return { error: 'nokey' };
+  const q = String(query || '').slice(0, 400);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    // MWANGA_AI_URL lets the automatic check use a stand-in server
+    const res = await net.fetch(process.env.MWANGA_AI_URL || 'https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: model || 'claude-haiku-5-5', max_tokens: 200, system: AI_SYSTEM, messages: [{ role: 'user', content: q }] })
+    });
+    if (res.status === 401 || res.status === 403) return { error: 'badkey' };
+    if (!res.ok) return { error: 'http', status: res.status };
+    const data = await res.json();
+    const text = (data.content || []).map((c) => c.text || '').join('');
+    const m = /\[[\s\S]*\]/.exec(text);
+    const refs = m ? JSON.parse(m[0]) : [];
+    return { refs: Array.isArray(refs) ? refs.filter((r) => typeof r === 'string').slice(0, 5) : [] };
+  } catch (e) {
+    return { error: controller.signal.aborted ? 'timeout' : 'offline' };
+  } finally { clearTimeout(timer); }
+});
+
 // ---------- IPC ----------
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('store:load', () => ({
@@ -665,6 +712,41 @@ async function screenshotRun(dir) {
     if (streamWin) await snap(streamWin, 'stream-window.png');
     fs.writeFileSync(path.join(dir, 'stream-check.json'), JSON.stringify({ lower, full, viewCommand, wrongPin, cable, links: info2.streamUrls }, null, 1));
     obs.destroy();
+  }
+  // finding verses by their words, and Ask AI (with a stand-in AI server)
+  {
+    const fake = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => { body += c; });
+      req.on('end', () => {
+        const ok = req.headers['x-api-key'] === 'test-key-123';
+        res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ content: [{ type: 'text', text: 'Here you go: ["Jeremiah 29:11", "Romans 8:28", "Hezekiah 4:2"]' }], sent: body.length }));
+      });
+    });
+    await new Promise((r) => fake.listen(0, '127.0.0.1', r));
+    process.env.MWANGA_AI_URL = `http://127.0.0.1:${fake.address().port}/v1/messages`;
+    const typeIn = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
+    const outText = () => output.webContents.executeJavaScript('(document.querySelector(".out-text") || {}).innerText || ""');
+    // save a key in Library → Bible
+    await js(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'Bible').click()`); await wait(300);
+    await typeIn('.ai-box input', 'test-key-123'); await wait(100);
+    await js(`[...document.querySelectorAll('.ai-box button')].find((b) => b.textContent === 'Save').click()`); await wait(500);
+    // modern words + Enter
+    await typeIn('.search input', 'God loved the world so much that he gave his one and only son'); await wait(500);
+    const wordResults = await js(`[...document.querySelectorAll('.results .result strong')].map((s) => s.textContent)`);
+    await js(`document.querySelector('.search input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`); await wait(900);
+    const afterEnter = await outText();
+    // meaning only: words search can't find it, Ask AI can
+    await typeIn('.search input', 'plans to prosper you and not to harm you'); await wait(500);
+    const before = await js(`[...document.querySelectorAll('.results .result strong')].map((s) => s.textContent)`);
+    await js(`document.querySelector('#ask-ai').click()`); await wait(1500);
+    await snap(operator, 'operator-ask-ai.png');
+    const aiTitles = await js(`(() => { const h = [...document.querySelectorAll('.result-head')].find((x) => x.textContent.includes('AI')); const out = []; let n = h && h.nextElementSibling; while (n && !n.classList.contains('result-head')) { const s = n.querySelector('strong'); if (s) out.push(s.textContent); n = n.nextElementSibling; } return out; })()`);
+    await js(`[...document.querySelectorAll('.results .result')].find((r) => (r.querySelector('strong') || {}).textContent === 'Jeremiah 29:11').querySelector('.primary').click()`); await wait(900);
+    const afterAi = await outText();
+    fs.writeFileSync(path.join(dir, 'verse-search-check.json'), JSON.stringify({ wordResults, afterEnter, before, aiTitles, afterAi }, null, 1));
+    fake.close();
   }
   app.quit();
 }

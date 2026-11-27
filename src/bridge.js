@@ -13,7 +13,8 @@ const stubs = {
   findVideoPsalm: async () => null,
   listen: { start: async () => false, stop: async () => true, audio: () => {}, onEvent: noop },
   media: { import: async () => [], remove: async () => true, saveThumb: async () => null, url: () => '', thumbUrl: () => '' },
-  video: { report: () => {}, onProgress: noop }
+  video: { report: () => {}, onProgress: noop },
+  ai: { status: async () => ({ hasKey: false }), setKey: async () => ({ hasKey: false }), findVerses: async () => ({ error: 'desktop' }) }
 };
 
 // pin: phone with control. view: the livestream page, which can only watch.

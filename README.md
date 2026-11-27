@@ -14,6 +14,12 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.8: find a verse from its words
+
+Type what people remember into the search box (Ctrl K):
+- **By words, offline**: "God loved the world so much he gave his son", "the lord is my shepard", "trust in the lord with all your heart". Ranked search of the whole Bible (and the second translation): old KJV words read as modern ones, word endings ignored, spelling mistakes forgiven, words in the right order score higher. Weak matches are hidden. Enter shows the best verse.
+- **Ask AI (optional, online)**: for when only the meaning is remembered ("plans to prosper you" → Jeremiah 29:11). Set an Anthropic API key in Library → Bible (stored encrypted with Windows' protection). Only the typed words are sent; the AI returns references only; Mwanga keeps references that exist in its Bible and shows its own text, so nothing invented reaches the screen. Model: `claude-haiku-5-5` (setting `aiModel`).
+
 ## New in 0.7: livestream view for OBS
 
 The projector output goes to the switcher as before. Right panel → **Stream** sends lyrics and verses to OBS on another computer:

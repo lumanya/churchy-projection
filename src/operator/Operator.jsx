@@ -10,6 +10,7 @@ import { Mini, Logo } from './Mini.jsx';
 import { formatTimer } from '../stage/timer.js';
 import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
 import { buildSongIndex, identifySong, followSong } from '../lib/songMatch.js';
+import { buildVerseIndex, searchVerses, looksLikeVerseWords } from '../lib/verseSearch.js';
 import { useMicrophone, listMicrophones } from './useMicrophone.js';
 
 const fmtTime = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -52,6 +53,10 @@ export default function Operator() {
   const [videoProgress, setVideoProgress] = useState(null);
   const [followNote, setFollowNote] = useState('');
   const followRef = useRef({ lastMoveAt: 0, left: null });
+  const verseIndexes = useRef({});            // bible id → search index, built once
+  const [indexReady, setIndexReady] = useState(0);
+  const [ai, setAi] = useState({ hasKey: false });
+  const [aiResult, setAiResult] = useState(null); // { query, loading, verses, error }
   const searchRef = useRef(null);
   const commandRef = useRef(null);
   const t = makeT(settings?.lang);
@@ -74,6 +79,7 @@ export default function Operator() {
       setRemote(await api.remote.info());
       setUpdate(await api.update.status());
       setVersion(await api.version());
+      setAi(await api.ai.status());
       if (saved.session && saved.session.live) setLive(saved.session.live); // back where we were after a crash or power cut
       setReady(true);
     })();
@@ -100,6 +106,17 @@ export default function Operator() {
       });
     }
   }, [settings?.mainBible, settings?.secondBible]);
+
+  // ---------- search index for finding verses by their words (built in the background) ----------
+  useEffect(() => {
+    const todo = Object.values(bibles).filter((b) => b && b.id && !verseIndexes.current[b.id]);
+    if (!todo.length) return undefined;
+    const h = setTimeout(() => {
+      for (const b of todo) verseIndexes.current[b.id] = buildVerseIndex(b);
+      setIndexReady((n) => n + 1);
+    }, 300);
+    return () => clearTimeout(h);
+  }, [bibles]);
 
   // ---------- autosave, a moment after each change ----------
   const firstSave = useRef(true);
@@ -347,8 +364,44 @@ export default function Operator() {
     const songs = library.songs.filter((s) =>
       s.title.toLowerCase().includes(lq) || (s.number && String(s.number) === q.replace(/\D/g, '') && /\d/.test(q)) || s.lyrics.toLowerCase().includes(lq)
     ).slice(0, 8);
-    return { verse, songs };
-  }, [query, library, bibles, settings]);
+    // words from a verse: search the main Bible and the second translation, best first
+    let verses = [];
+    if (!verse && looksLikeVerseWords(q)) {
+      const found = new Map();
+      for (const id of [settings.mainBible, settings.secondBible]) {
+        const ix = verseIndexes.current[id];
+        if (!ix) continue;
+        for (const r of searchVerses(ix, q, { limit: 6 })) {
+          const key = `${r.book} ${r.chapter}:${r.verse}`;
+          if (r.coverage < 0.5) continue; // weak match: better to offer Ask AI than to mislead
+          if (!found.has(key) || found.get(key).score < r.score) found.set(key, { ...r, key });
+        }
+      }
+      const best = [...found.values()].sort((a, b) => b.score - a.score);
+      const topScore = best[0] ? best[0].score : 0;
+      verses = best.filter((r) => r.score >= topScore * 0.45).slice(0, 5).map((r) => verseResult({ book: r.book, chapter: r.chapter, from: r.verse, to: r.verse }));
+    }
+    return { verse, songs, verses };
+  }, [query, library, bibles, settings, indexReady]);
+
+  // a verse as a search result, with its text from Mwanga's own Bible
+  function verseResult(ref) {
+    const main = bibles[settings.mainBible];
+    const vs = getVerses(main, ref);
+    return { ref: { ...ref, bibleId: settings.mainBible }, title: formatReference(ref, main && main.lang === 'sw' ? 'sw' : 'en'), preview: vs.map((v) => v.text).join(' ') };
+  }
+
+  const askAi = async () => {
+    const q = query.trim();
+    if (!q) return;
+    setAiResult({ query: q, loading: true });
+    const r = await api.ai.findVerses(q, settings.aiModel);
+    if (r.error) { setAiResult({ query: q, error: r.error }); return; }
+    // only references that exist in our Bible; the text always comes from Mwanga, never from the AI
+    const main = bibles[settings.mainBible];
+    const verses = (r.refs || []).map((txt) => parseReference(txt)).filter((ref) => ref && getVerses(main, ref).length).map(verseResult);
+    setAiResult({ query: q, verses });
+  };
 
   if (!ready) return <div className="boot"><Logo size={40} /></div>;
 
@@ -410,6 +463,7 @@ export default function Operator() {
                 if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
                 if (e.key === 'Enter' && results?.verse) addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title }, true);
                 else if (e.key === 'Enter' && results?.songs[0]) { const s = results.songs[0]; addItem({ type: 'song', refId: s.id, title: s.title }, true); }
+                else if (e.key === 'Enter' && results?.verses[0]) addItem({ type: 'bible', ref: results.verses[0].ref, title: results.verses[0].title }, true);
               }} />
             <kbd>CTRL K</kbd>
           </label>
@@ -433,7 +487,44 @@ export default function Operator() {
                   </div>
                 </div>
               ))}
-              {!results.verse && !results.songs.length && <div className="result muted">{t('notFound')}</div>}
+              {results.verses.length > 0 && (
+                <>
+              {results.verses.length > 0 && <div className="result-head mono">{t('versesWithWords')}</div>}
+              {results.verses.map((v) => (
+                <div className="result" key={v.title}>
+                  <div><strong>{v.title}</strong><span className="muted"> · {v.preview.slice(0, 120)}{v.preview.length > 120 ? '…' : ''}</span></div>
+                  <div className="result-actions">
+                    <button type="button" className="primary sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}>{t('showNow')}</button>
+                    <button type="button" className="sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title })}>{t('addToService')}</button>
+                  </div>
+                </div>
+              ))}
+                </>
+              )}
+              {aiResult && aiResult.query === query.trim() && (
+                <>
+                  <div className="result-head mono">{t('aiSuggests')}</div>
+                  {aiResult.loading && <div className="result muted">{t('aiThinking')}</div>}
+                  {aiResult.error && <div className="result accent">{t('aiError_' + aiResult.error)}</div>}
+                  {aiResult.verses && !aiResult.verses.length && <div className="result muted">{t('aiNothing')}</div>}
+                  {(aiResult.verses || []).map((v) => (
+                    <div className="result" key={'ai' + v.title}>
+                      <div><strong>{v.title}</strong><span className="muted"> · {v.preview.slice(0, 120)}{v.preview.length > 120 ? '…' : ''}</span></div>
+                      <div className="result-actions">
+                        <button type="button" className="primary sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}>{t('showNow')}</button>
+                        <button type="button" className="sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title })}>{t('addToService')}</button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+              {!results.verse && looksLikeVerseWords(query) && !(aiResult && aiResult.query === query.trim() && !aiResult.error) && (
+                <div className={'result' + (results.verses.length ? '' : ' ai-first')}>
+                  <span className="muted small">{ai.hasKey ? t('aiOffer') : t('aiSetupHint')}</span>
+                  {ai.hasKey && <button type="button" id="ask-ai" className="sm" onClick={askAi} disabled={aiResult && aiResult.loading}>✦ {t('askAi')}</button>}
+                </div>
+              )}
+              {!results.verse && !results.songs.length && !results.verses.length && !looksLikeVerseWords(query) && <div className="result muted">{t('notFound')}</div>}
             </div>
           )}
         </div>
@@ -469,7 +560,7 @@ export default function Operator() {
           <Library
             t={t} library={library} setLibrary={setLibrary} settings={settings} setSettings={setSettings}
             bibleList={bibleList} setBibleList={setBibleList} bibles={bibles} setBibles={setBibles}
-            addItem={addItem} onEdit={setEditing} flash={flash}
+            addItem={addItem} onEdit={setEditing} flash={flash} ai={ai} setAi={setAi}
           />
         </section>
 

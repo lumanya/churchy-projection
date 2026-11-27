@@ -80,6 +80,11 @@ contextBridge.exposeInMainWorld('mwanga', {
     report: (p) => ipcRenderer.send('video:progress', p),
     onProgress: on('video:progress')
   },
+  ai: {
+    status: () => ipcRenderer.invoke('ai:status'),
+    setKey: (key) => ipcRenderer.invoke('ai:setKey', key),
+    findVerses: (query, model) => ipcRenderer.invoke('ai:findVerses', query, model)
+  },
   openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
   findEasyWorship: () => ipcRenderer.invoke('easyworship:find'),
   findVideoPsalm: () => ipcRenderer.invoke('videopsalm:find')

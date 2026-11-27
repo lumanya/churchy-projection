@@ -257,3 +257,6 @@ body.is-stream { cursor: none; overflow: hidden; }
 .steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--soft); }
 .right-tabs { flex-wrap: nowrap; gap: 12px; }
 .right-tabs button { font-size: 13px; }
+.result-head { padding: 8px 14px 4px; font-size: 10px; color: var(--muted); letter-spacing: .6px; border-bottom: 1px solid var(--line); }
+.ai-box { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.result.ai-first { background: #241A14; }

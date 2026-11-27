@@ -8,7 +8,8 @@ import { uid } from '../lib/defaults.js';
 import MediaBrowser from './MediaBrowser.jsx';
 import { easyWorshipSongs, parseVideoPsalmFile, LockedBookError, pickEasyWorshipFiles } from '../lib/importers.js';
 
-export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash }) {
+export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash, ai, setAi }) {
+  const [aiKey, setAiKey] = useState('');
   const [tab, setTab] = useState('songs');
   const [filter, setFilter] = useState('');
   const [pick, setPick] = useState({ book: 'JHN', chapter: 3, from: 16, to: 16 });
@@ -158,6 +159,21 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
             ))}
           </div>
           <button type="button" className="wide" onClick={importBible}>{t('importBible')} (Zefania XML, USFM, JSON)</button>
+          <div className="ai-box">
+            <strong>✦ {t('askAi')}</strong>
+            <p className="muted small" style={{ margin: 0 }}>{t('aiHelp')}</p>
+            {ai && ai.hasKey ? (
+              <div className="row between">
+                <span className="small accent">{t('aiReady')}</span>
+                <button type="button" className="sm" onClick={async () => setAi(await api.ai.setKey(''))}>{t('remove')}</button>
+              </div>
+            ) : (
+              <div className="row">
+                <input className="grow" type="password" value={aiKey} onChange={(e) => setAiKey(e.target.value)} placeholder={t('aiKeyPlaceholder')} aria-label={t('aiKeyPlaceholder')} autoComplete="off" />
+                <button type="button" className="sm primary" disabled={!aiKey.trim()} onClick={async () => { setAi(await api.ai.setKey(aiKey)); setAiKey(''); flash(t('saved')); }}>{t('save')}</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
