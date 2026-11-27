@@ -25,8 +25,8 @@
 ## Releasing an update
 
 1. Change `version` in package.json (for example 0.2.1) and commit.
-2. `git tag v0.2.1 && git push origin main --tags`
-3. GitHub Actions builds the installer and publishes the release. Every installed Mwanga offers the update within a few hours.
+2. Push to `main`.
+3. GitHub Actions builds the installer and publishes release v0.2.1. Every installed Mwanga offers the update within a few hours.
 
 ## Run it
 
