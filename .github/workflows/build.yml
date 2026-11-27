@@ -40,6 +40,9 @@ jobs:
           path: .models
           key: whisper-models-v1
       - run: node scripts/listen-smoke.mjs fast
+      - name: Same check with the larger model (report only)
+        run: node scripts/listen-smoke.mjs better
+        continue-on-error: true
 
   windows:
     needs: test
