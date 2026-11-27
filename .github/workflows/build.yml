@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write   # needed to publish releases that Mwanga's auto-update reads
 
+env:
+  # the speech engine's optional graphics-card add-ons are not used; don't download them
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   test:
     runs-on: ubuntu-latest
