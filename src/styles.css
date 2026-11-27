@@ -240,3 +240,20 @@ kbd.on-accent { color: var(--on-accent); border: 1px solid rgba(26,10,0,.4); bor
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; }
+
+/* ---------- livestream view (OBS) ---------- */
+body.is-stream { cursor: none; overflow: hidden; }
+.stream { position: fixed; inset: 0; font-family: var(--screen); }
+.stream-fill { position: absolute; inset: 0; }
+.stream.full .out-box { z-index: 2; }
+.stream-ref-full { position: absolute; left: 8vw; bottom: 5vh; font-size: 3.4vh; font-weight: 700; z-index: 2; }
+.lower-bar { position: absolute; left: 6vw; right: 6vw; bottom: 6vh; height: 24vh; background: rgba(12, 11, 10, 0.78); border-left: 0.7vh solid; border-radius: 0.6vh; padding: 1.8vh 2.6vw 1.4vh; box-sizing: border-box; display: flex; flex-direction: column; color: #fff; }
+.lower-box { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.lower-text { width: 100%; max-height: 100%; text-align: center; font-weight: 700; line-height: 1.22; white-space: pre-line; text-shadow: 0 0.2vh 0.6vh rgba(0,0,0,.5); }
+.lower-title { font-size: 0.75em; margin-bottom: 0.3em; }
+.lower-ref { font-size: 2.3vh; font-weight: 700; text-align: right; }
+.url-row { display: flex; gap: 6px; align-items: center; }
+.url-row code { flex: 1; min-width: 0; }
+.steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--soft); }
+.right-tabs { flex-wrap: nowrap; gap: 12px; }
+.right-tabs button { font-size: 13px; }

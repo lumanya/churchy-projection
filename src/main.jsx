@@ -14,6 +14,7 @@ import Operator from './operator/Operator.jsx';
 import Output from './output/Output.jsx';
 import Stage from './stage/Stage.jsx';
 import Remote from './remote/Remote.jsx';
+import Stream from './stream/Stream.jsx';
 
 function App() {
   const [hash, setHash] = React.useState(window.location.hash);
@@ -25,11 +26,13 @@ function App() {
   let view = 'operator';
   if (hash.startsWith('#/output')) view = 'output';
   else if (hash.startsWith('#/stage')) view = 'stage';
+  else if (hash.startsWith('#/stream')) view = 'stream';
   else if (hash.startsWith('#/remote') || onPhone) view = 'remote';
   document.body.className = 'is-' + view;
   if (view === 'output') return <Output />;
   if (view === 'stage') return <Stage />;
   if (view === 'remote') return <Remote />;
+  if (view === 'stream') return <Stream />;
   return <Operator />;
 }
 

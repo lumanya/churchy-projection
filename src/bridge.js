@@ -6,6 +6,7 @@ const noop = () => () => {};
 const stubs = {
   version: async () => 'dev',
   stage: { isOpen: async () => false, open: async () => true, close: async () => true, move: async () => true, onState: noop },
+  stream: { isOpen: async () => false, open: async () => true, close: async () => true, move: async () => true, onState: noop },
   remote: { start: async () => ({ on: false, urls: [] }), stop: async () => ({ on: false, urls: [] }), info: async () => ({ on: false, urls: [] }), qr: async () => '', onInfo: noop, onCommand: noop },
   update: { status: async () => ({ state: 'idle' }), download: async () => true, install: async () => true, onStatus: noop },
   findEasyWorship: async () => null,
@@ -15,8 +16,9 @@ const stubs = {
   video: { report: () => {}, onProgress: noop }
 };
 
-function webBridge(pin) {
-  const q = `pin=${encodeURIComponent(pin)}`;
+// pin: phone with control. view: the livestream page, which can only watch.
+function webBridge(pin, view) {
+  const q = pin ? `pin=${encodeURIComponent(pin)}` : `view=${encodeURIComponent(view)}`;
   return {
     ...stubs,
     kind: 'phone',
@@ -97,6 +99,8 @@ function browserBridge() {
 function choose() {
   if (window.mwanga) return window.mwanga;
   const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
+  if (view) return webBridge(null, view);
   const pin = params.get('pin') || sessionStorage.getItem('mwanga-pin');
   if (pin) { sessionStorage.setItem('mwanga-pin', pin); return webBridge(pin); }
   return browserBridge();

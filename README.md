@@ -14,6 +14,13 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.7: livestream view for OBS
+
+The projector output goes to the switcher as before. Right panel → **Stream** sends lyrics and verses to OBS on another computer:
+- **Over the network (recommended)**: turn on, copy a link, and add it in OBS as a **Browser** source (1920×1080). Two looks: **lower third** (a bar over the camera, see-through background) or **full screen** (as on the projector, pictures included). The link is watch-only: it cannot change slides.
+- **Through a cable**: open the livestream window on a screen output with a green, blue or black background and remove it in OBS with a Chroma Key (or Luma Key) filter.
+- Text size for the livestream is set separately from the projector.
+
 ## New in 0.6: finding pictures and videos
 
 Library → **Media**:

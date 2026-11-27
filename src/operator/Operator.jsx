@@ -32,6 +32,7 @@ export default function Operator() {
   const [toast, setToast] = useState('');
   const [rightTab, setRightTab] = useState('projector');
   const [stageOpen, setStageOpen] = useState(false);
+  const [streamOpen, setStreamOpen] = useState(false);
   const [stageDraft, setStageDraft] = useState('');
   const [stageMessage, setStageMessage] = useState('');
   const [timer, setTimer] = useState({ running: false, startedAt: 0, base: 0, minutes: 0 });
@@ -69,6 +70,7 @@ export default function Operator() {
       setDisplays(await api.displays.list());
       setOutputOpen(await api.output.isOpen());
       setStageOpen(await api.stage.isOpen());
+      setStreamOpen(await api.stream.isOpen());
       setRemote(await api.remote.info());
       setUpdate(await api.update.status());
       setVersion(await api.version());
@@ -83,7 +85,8 @@ export default function Operator() {
     const off6 = api.remote.onCommand((c) => commandRef.current && commandRef.current(c));
     const off7 = api.listen.onEvent((m) => listenRef.current && listenRef.current(m));
     const off8 = api.video.onProgress(setVideoProgress);
-    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); off8(); };
+    const off9 = api.stream.onState(setStreamOpen);
+    return () => { off1(); off2(); off3(); off4(); off5(); off6(); off7(); off8(); off9(); };
   }, []);
 
   // ---------- load the Bibles we need ----------
@@ -376,8 +379,15 @@ export default function Operator() {
   const toggleRemote = async () => {
     const info = remote.on ? await api.remote.stop() : await api.remote.start();
     setRemote(info);
-    setSetting({ remoteOn: info.on, remotePin: info.pin || settings.remotePin });
+    setSetting({ remoteOn: info.on, remotePin: info.pin || settings.remotePin, streamToken: info.view || settings.streamToken });
   };
+  const toggleStreamWindow = async () => {
+    if (streamOpen) await api.stream.close(); else { await api.stream.open(); setStreamOpen(true); }
+  };
+  // settings that change the livestream window take effect by reopening it
+  const setStreamSetting = (patch) => { setSetting(patch); if (streamOpen) setTimeout(() => api.stream.move(), 400); };
+  const streamLink = (base, style) => `${base}?style=${style}&key=transparent&scale=${settings.streamScale || 1}`;
+  const copy = (text) => { navigator.clipboard.writeText(text).then(() => flash(t('copied'))).catch(() => flash(text)); };
   const toggleOutput = async () => { if (outputOpen && inElectron) await api.output.close(); else { await api.output.open(); setOutputOpen(true); } };
   const setSetting = (patch) => setSettings((s) => ({ ...s, ...patch }));
 
@@ -551,7 +561,7 @@ export default function Operator() {
           )}
 
           <div className="tabs right-tabs" role="tablist">
-            {[['projector', t('projector')], ['stage', t('preacher')], ['phone', t('phone')], ['listen', t('listen')]].map(([k, label]) => (
+            {[['projector', t('projector')], ['stage', t('preacher')], ['stream', t('stream')], ['phone', t('phone')], ['listen', t('listen')]].map(([k, label]) => (
               <button key={k} type="button" role="tab" data-tab={k} aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>{label}</button>
             ))}
           </div>
@@ -664,6 +674,62 @@ export default function Operator() {
               {listenStatus.state === 'downloading' && <div className="meter"><span style={{ width: `${listenStatus.percent || 0}%` }} /></div>}
               {listenStatus.state === 'error' && <p className="accent small" style={{ margin: 0 }}>{listenStatus.message}</p>}
               <p className="muted small" style={{ margin: 0 }}>{t('listenPrivacy')}</p>
+            </div>
+          )}
+
+          {rightTab === 'stream' && (
+            <div className="panel">
+              <p className="muted small" style={{ margin: 0 }}>{t('streamHelp')}</p>
+              <label className="field"><span>{t('textSize')}</span>
+                <input type="range" min="0.7" max="1.5" step="0.05" value={settings.streamScale || 1} onChange={(e) => setStreamSetting({ streamScale: +e.target.value })} style={{ height: 'auto' }} />
+              </label>
+
+              <strong>{t('streamNetwork')}</strong>
+              {!remote.on ? (
+                <>
+                  <p className="muted small" style={{ margin: 0 }}>{t('streamNetworkOff')}</p>
+                  <button type="button" id="stream-on" className="primary" onClick={toggleRemote}>{t('turnOn')}</button>
+                </>
+              ) : remote.streamUrls && remote.streamUrls.length ? (
+                <>
+                  {[['lower', t('lowerThird')], ['full', t('fullScreen')]].map(([style, label]) => (
+                    <div key={style} className="field"><span>{label}</span>
+                      <div className="url-row">
+                        <code className="url" id={'stream-url-' + style}>{streamLink(remote.streamUrls[0], style)}</code>
+                        <button type="button" className="sm" onClick={() => copy(streamLink(remote.streamUrls[0], style))}>{t('copy')}</button>
+                      </div>
+                    </div>
+                  ))}
+                  {remote.streamUrls.length > 1 && <p className="muted small" style={{ margin: 0 }}>{t('otherAddresses')}: {remote.streamUrls.slice(1).map((u) => u.split('/?')[0]).join(', ')}</p>}
+                  <ol className="steps small">
+                    <li>{t('obsStep1')}</li>
+                    <li>{t('obsStep2')}</li>
+                    <li>{t('obsStep3')}</li>
+                  </ol>
+                  <p className="muted small" style={{ margin: 0 }}>{t('streamViewOnly')}</p>
+                </>
+              ) : <p className="muted small">{t('noNetwork')}</p>}
+
+              <strong style={{ marginTop: 6 }}>{t('streamCable')}</strong>
+              <p className="muted small" style={{ margin: 0 }}>{t('streamCableHelp')}</p>
+              <div className="row">
+                <select value={settings.streamStyle || 'lower'} onChange={(e) => setStreamSetting({ streamStyle: e.target.value })} aria-label={t('look')}>
+                  <option value="lower">{t('lowerThird')}</option>
+                  <option value="full">{t('fullScreen')}</option>
+                </select>
+                <select value={settings.streamKey || 'green'} onChange={(e) => setStreamSetting({ streamKey: e.target.value })} aria-label={t('keyColour')}>
+                  <option value="green">{t('keyGreen')}</option>
+                  <option value="blue">{t('keyBlue')}</option>
+                  <option value="black">{t('keyBlack')}</option>
+                </select>
+              </div>
+              <label className="field"><span>{t('display')}</span>
+                <select value={settings.streamDisplayId ?? ''} onChange={(e) => setStreamSetting({ streamDisplayId: e.target.value ? Number(e.target.value) : null })}>
+                  <option value="">{t('previewWindow')}</option>
+                  {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+              <button type="button" id="stream-window" className={streamOpen ? '' : 'primary'} onClick={toggleStreamWindow}>{streamOpen ? '■ ' + t('closeStreamWindow') : '▶ ' + t('openStreamWindow')}</button>
             </div>
           )}
 

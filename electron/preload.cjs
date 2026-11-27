@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('mwanga', {
     move: () => ipcRenderer.invoke('stage:move'),
     onState: on('stage:state')
   },
+  stream: {
+    isOpen: () => ipcRenderer.invoke('stream:isOpen'),
+    open: () => ipcRenderer.invoke('stream:open'),
+    close: () => ipcRenderer.invoke('stream:close'),
+    move: () => ipcRenderer.invoke('stream:move'),
+    onState: on('stream:state')
+  },
   remote: {
     start: () => ipcRenderer.invoke('remote:start'),
     stop: () => ipcRenderer.invoke('remote:stop'),

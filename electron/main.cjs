@@ -29,6 +29,7 @@ const MEDIA_TYPES = {
 let operator = null;
 let output = null;
 let stage = null;
+let streamWin = null;
 let lastLive = { slide: null, black: false, message: '' };
 
 // ---------- storage: plain JSON files, written atomically so a power cut never corrupts them ----------
@@ -101,7 +102,7 @@ function createOperator() {
     const s = readJSON('settings.json', {});
     if (s.stageOpen && pickDisplay('stageDisplayId', true)) setTimeout(openStage, 1200);
   });
-  operator.on('closed', () => { operator = null; if (output) output.close(); if (stage) stage.close(); });
+  operator.on('closed', () => { operator = null; if (output) output.close(); if (stage) stage.close(); if (streamWin) streamWin.close(); });
   // links open in the normal browser, never inside Mwanga
   operator.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   load(operator, '/operator');
@@ -149,10 +150,25 @@ function openStage() {
 }
 function closeStage() { if (stage) stage.close(); }
 
+// Livestream view on a screen output (for a capture card into the OBS computer).
+function streamHash() {
+  const s = readJSON('settings.json', {});
+  const q = new URLSearchParams({ style: s.streamStyle === 'full' ? 'full' : 'lower', key: ['green', 'black', 'blue'].includes(s.streamKey) ? s.streamKey : 'green', scale: String(s.streamScale || 1) });
+  return `/stream?${q}`;
+}
+function openStream() {
+  if (streamWin) { streamWin.show(); return; }
+  streamWin = makeScreenWindow(pickDisplay('streamDisplayId', true), 'Mwanga livestream', streamHash());
+  streamWin.on('closed', () => { streamWin = null; send(operator, 'stream:state', false); });
+  send(operator, 'stream:state', true);
+}
+function closeStream() { if (streamWin) streamWin.close(); }
+
 // ---------- phone remote: a small web server on the church Wi-Fi ----------
 // Phones open http://<this PC>:<port>/?pin=1234 and get the same React app (remote and preacher views).
 // Every request must carry the PIN. Nothing is reachable from the internet unless the church's router forwards it.
-const remote = { server: null, port: 0, pin: '', clients: new Set(), failures: new Map() };
+// pin: full control (phones). view: watch only (the livestream page in OBS).
+const remote = { server: null, port: 0, pin: '', view: '', clients: new Set(), failures: new Map() };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.json': 'application/json' };
 
 function lanAddresses() {
@@ -168,19 +184,24 @@ function remoteInfo() {
   const ips = lanAddresses();
   return {
     on: !!remote.server, port: remote.port, pin: remote.pin, clients: remote.clients.size,
-    urls: ips.map((ip) => `http://${ip}:${remote.port}/?pin=${remote.pin}`)
+    urls: ips.map((ip) => `http://${ip}:${remote.port}/?pin=${remote.pin}`),
+    view: remote.view,
+    streamUrls: ips.map((ip) => `http://${ip}:${remote.port}/?view=${remote.view}#/stream`)
   };
 }
 
-function pinOk(req, url) {
+const same = (a, b) => a.length === b.length && a.length > 0 && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+// 'control' with the PIN, 'view' with the watch-only link, otherwise null
+function access(req, url) {
   const ip = req.socket.remoteAddress;
   const fails = remote.failures.get(ip) || 0;
-  if (fails >= 20) return false; // too many wrong PINs from one phone
-  const given = url.searchParams.get('pin') || req.headers['x-mwanga-pin'] || '';
-  const ok = given.length === remote.pin.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(remote.pin));
-  if (!ok) remote.failures.set(ip, fails + 1);
+  if (fails >= 20) return null; // too many wrong tries from one device
+  const pin = url.searchParams.get('pin') || req.headers['x-mwanga-pin'] || '';
+  const view = url.searchParams.get('view') || '';
+  const level = pin && same(pin, remote.pin) ? 'control' : view && same(view, remote.view) ? 'view' : null;
+  if (!level) remote.failures.set(ip, fails + 1);
   else remote.failures.delete(ip);
-  return ok;
+  return level;
 }
 
 function broadcast() {
@@ -193,7 +214,8 @@ function handleRemote(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
   if (url.pathname.startsWith('/api/')) {
-    if (!pinOk(req, url)) { res.writeHead(401); res.end('Wrong PIN'); return; }
+    const level = access(req, url);
+    if (!level) { res.writeHead(401); res.end('Wrong PIN'); return; }
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'keep-alive' });
       res.write(`data: ${JSON.stringify(lastLive)}\n\n`);
@@ -211,6 +233,7 @@ function handleRemote(req, res) {
       fs.createReadStream(file).pipe(res);
       return;
     }
+    if (url.pathname === '/api/command' && level !== 'control') { res.writeHead(403); res.end('This link can only watch'); return; }
     if (url.pathname === '/api/command' && req.method === 'POST') {
       let body = '';
       req.on('data', (c) => { body += c; if (body.length > 10000) req.destroy(); });
@@ -237,6 +260,8 @@ function startRemote() {
   if (remote.server) return Promise.resolve(remoteInfo());
   const s = readJSON('settings.json', {});
   remote.pin = s.remotePin && /^\d{4,6}$/.test(s.remotePin) ? s.remotePin : String(crypto.randomInt(1000, 9999));
+  // the OBS link stays the same week after week, so the livestream computer is set up once
+  remote.view = s.streamToken && /^[a-f0-9]{12}$/.test(s.streamToken) ? s.streamToken : crypto.randomBytes(6).toString('hex');
   return new Promise((resolve) => {
     const server = http.createServer(handleRemote);
     // the same port every week, so phones that saved the link keep working; another port if it's taken
@@ -420,6 +445,10 @@ ipcMain.handle('stage:open', () => { openStage(); return true; });
 ipcMain.handle('stage:close', () => { closeStage(); return true; });
 ipcMain.handle('stage:move', () => { const was = !!stage; closeStage(); if (was) setTimeout(openStage, 300); return true; });
 
+ipcMain.handle('stream:isOpen', () => !!streamWin);
+ipcMain.handle('stream:open', () => { openStream(); return true; });
+ipcMain.handle('stream:close', () => { closeStream(); return true; });
+ipcMain.handle('stream:move', () => { const was = !!streamWin; closeStream(); if (was) setTimeout(openStream, 300); return true; });
 ipcMain.handle('remote:start', () => startRemote());
 ipcMain.handle('remote:stop', () => stopRemote());
 ipcMain.handle('remote:info', () => remoteInfo());
@@ -433,6 +462,7 @@ ipcMain.on('live:set', (_e, live) => {
   lastLive = live;
   send(output, 'live:update', live);
   send(stage, 'live:update', live);
+  send(streamWin, 'live:update', live);
   broadcast();
 });
 
@@ -605,6 +635,37 @@ async function screenshotRun(dir) {
   await wait(1200);
   await snap(phone, 'phone-after-next.png'); await snap(output, 'output-after-phone.png');
   fs.writeFileSync(path.join(dir, 'phone-check.json'), JSON.stringify({ output: await output.webContents.executeJavaScript('document.body.innerText') }));
+  // livestream: an OBS-like browser loads the watch-only link over the network
+  {
+    const info2 = remoteInfo();
+    const base = `http://127.0.0.1:${info2.port}/?view=${info2.view}#/stream`;
+    await js(`document.querySelectorAll('.svc-main')[1].click()`); await wait(200);
+    await js(`document.querySelectorAll('.slide')[1].click()`); await wait(600);
+    const obs = new BrowserWindow({ width: 1920, height: 1080, show: false });
+    await obs.loadURL(`${base}?style=lower&key=transparent&scale=1`);
+    await wait(2000);
+    const lower = await obs.webContents.executeJavaScript(`({ text: (document.querySelector('.lower-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`);
+    await snap(obs, 'obs-lower.png');
+    await obs.loadURL(`${base}?style=full&key=transparent&scale=1`);
+    await wait(2000);
+    const full = await obs.webContents.executeJavaScript(`(document.querySelector('.out-text') || {}).innerText || ''`);
+    await snap(obs, 'obs-full.png');
+    // the watch-only link must not be able to change slides
+    const tryCommand = (q) => new Promise((resolve) => {
+      const r = http.request({ host: '127.0.0.1', port: info2.port, path: `/api/command?${q}`, method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => resolve(res.statusCode));
+      r.on('error', () => resolve(-1)); r.end(JSON.stringify({ type: 'next' }));
+    });
+    const viewCommand = await tryCommand(`view=${info2.view}`);
+    const wrongPin = await tryCommand('pin=0000');
+    // the cable option: a window with a green background
+    await js(`document.querySelector('[data-tab="stream"]').click()`); await wait(300);
+    await snap(operator, 'operator-stream.png');
+    await js(`document.querySelector('#stream-window').click()`); await wait(1800);
+    const cable = streamWin ? await streamWin.webContents.executeJavaScript(`({ text: (document.querySelector('.lower-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`) : null;
+    if (streamWin) await snap(streamWin, 'stream-window.png');
+    fs.writeFileSync(path.join(dir, 'stream-check.json'), JSON.stringify({ lower, full, viewCommand, wrongPin, cable, links: info2.streamUrls }, null, 1));
+    obs.destroy();
+  }
   app.quit();
 }
 
