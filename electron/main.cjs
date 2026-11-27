@@ -459,9 +459,11 @@ async function aiCall(cfg, build, seconds) {
 ipcMain.handle('ai:findVerses', async (_e, query, cfg) => {
   // 0.8.0 passed only a model name
   const c = typeof cfg === 'string' || !cfg ? { provider: 'anthropic', model: cfg || '' } : cfg;
-  const r = await aiCall(c, (key) => AI.verseRequest(c, key, query), 30);
-  if (r.error) return r;
-  return { refs: AI.parseRefs(AI.answerText(r.data)) };
+  const started = Date.now();
+  const r = await aiCall(c, (key) => AI.verseRequest(c, key, query), 45);
+  const info = { model: AI.resolve(c).model, seconds: Math.round((Date.now() - started) / 100) / 10 };
+  if (r.error) return { ...r, ...info };
+  return { refs: AI.parseRefs(AI.answerText(r.data)), ...info };
 });
 // the page where each service hands out keys; only these fixed addresses are opened
 ipcMain.handle('ai:openKeyPage', (_e, provider) => {

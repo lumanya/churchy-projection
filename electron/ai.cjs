@@ -54,7 +54,7 @@ function headers(style, key) {
 
 // the request that asks for verses: { url, init }
 function verseRequest(cfg, key, query) {
-  const { p, base, model } = resolve(cfg);
+  const { id, p, base, model } = resolve(cfg);
   const q = String(query || '').slice(0, 400);
   if (p.style === 'anthropic') {
     return { url: `${base}/messages`, init: { method: 'POST', headers: headers('anthropic', key), body: JSON.stringify({ model, max_tokens: 200, system: SYSTEM, messages: [{ role: 'user', content: q }] }) } };
@@ -62,6 +62,8 @@ function verseRequest(cfg, key, query) {
   const body = { model, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: q }] };
   // OpenAI's newer models think before answering and count that against this limit, so it is generous; it still costs a fraction of a cent
   if (p.style === 'openai') body.max_completion_tokens = 2000; else body.max_tokens = 2000;
+  // finding a verse needs little thinking; Gemini's default thinking can take half a minute
+  if (id === 'gemini' || (id === 'groq' && /gpt-oss|qwen/i.test(model))) body.reasoning_effort = 'low';
   return { url: `${base}/chat/completions`, init: { method: 'POST', headers: headers(p.style, key), body: JSON.stringify(body) } };
 }
 

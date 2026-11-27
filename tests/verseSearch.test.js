@@ -23,7 +23,11 @@ describe('finding verses from remembered words (KJV)', () => {
     ['ask and it shall be given you seek and ye shall find', 'MAT 7:7'],
     ['all things work together for good to them that love god', 'ROM 8:28'],
     ['your word is a lamp to my feet', 'PSA 119:105'],
-    ['they that wait upon the lord shall renew their strength', 'ISA 40:31']
+    ['they that wait upon the lord shall renew their strength', 'ISA 40:31'],
+    ['in the beggining god created erath and heaven', 'GEN 1:1'],             // swapped and doubled letters
+    ['in the begining god created the heavens and the earth', 'GEN 1:1'],
+    ['the lord is my sheperd', 'PSA 23:1'],
+    ['for god so loevd the wrold', 'JHN 3:16']
   ])('%s', (q, want) => {
     expect(top(q, 3)).toContain(want);
     expect(top(q, 1)[0]).toBe(want);

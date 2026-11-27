@@ -32,6 +32,10 @@ describe('Ask AI services', () => {
     const r = AI.verseRequest({ provider: 'gemini' }, 'AIza', 'x');
     expect(r.url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     expect(body(r).max_tokens).toBeGreaterThan(0);
+    expect(body(r).model).toBe('gemini-3.5-flash');
+    expect(body(r).reasoning_effort).toBe('low'); // short thinking, so it answers in seconds
+    expect(body(AI.verseRequest({ provider: 'openai' }, 'k', 'x')).reasoning_effort).toBeUndefined();
+    expect(body(AI.verseRequest({ provider: 'groq', model: 'llama-3.3-70b-versatile' }, 'k', 'x')).reasoning_effort).toBeUndefined();
   });
 
   it('asks Groq at its OpenAI-compatible address', () => {

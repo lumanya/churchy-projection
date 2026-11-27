@@ -31,7 +31,7 @@ export default function AiSetup({ t, settings, setSettings, ai, setAi, flash }) 
       }
     }
     const r = await api.ai.findVerses(TEST_WORDS, c);
-    setTest(r.error ? { error: r.error } : { ok: true, refs: r.refs || [] });
+    setTest(r.error ? { error: r.error, model: r.model, seconds: r.seconds } : { ok: true, refs: r.refs || [], model: r.model, seconds: r.seconds });
   };
 
   const listId = 'ai-models-' + cfg.provider;
@@ -75,6 +75,7 @@ export default function AiSetup({ t, settings, setSettings, ai, setAi, flash }) 
       </div>
       {test && test.ok && <span className="small accent" id="ai-test-result">{t('aiWorks')}: {test.refs.length ? test.refs.join(', ') : '—'}</span>}
       {test && test.error && <span className="small" id="ai-test-result">{t('aiError_' + test.error)}</span>}
+      {test && test.model && <span className="small muted mono">{test.model} · {test.seconds} s</span>}
     </div>
   );
 }

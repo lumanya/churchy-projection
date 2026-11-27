@@ -3,7 +3,7 @@
 // Ranking: BM25 over all verses, with
 //  · old KJV words read as modern ones (thee → you, hath → has, unto → to),
 //  · English word endings ignored (loveth, loved, loves → love),
-//  · spelling mistakes forgiven (shepard → shepherd),
+//  · spelling mistakes forgiven (shepard → shepherd, erath → earth, beggining → beginning),
 //  · a bonus when words appear in the same order as typed.
 const ARCHAIC = {
   thee: 'you', thou: 'you', ye: 'you', thy: 'your', thine: 'your', hath: 'has', hast: 'have', doth: 'does', dost: 'do',
@@ -33,17 +33,21 @@ export function tokens(text, english = true) {
   });
 }
 
+// Damerau (optimal string alignment) distance: a swapped pair of letters ("erath" → "earth") counts as one mistake
 function editDistance(a, b, max) {
   if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2 = null;
   let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
     const cur = [i];
     let rowMin = i;
     for (let j = 1; j <= b.length; j++) {
       cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev2[j - 2] + 1);
       rowMin = Math.min(rowMin, cur[j]);
     }
     if (rowMin > max) return max + 1;
+    prev2 = prev;
     prev = cur;
   }
   return prev[b.length];
@@ -56,11 +60,15 @@ export function buildVerseIndex(bible) {
   const texts = [];      // normalised token string, for phrase checks
   const lengths = [];
   const postings = new Map(); // token → Map(verseIndex → count)
+  const words = new Map();    // each word as written in this Bible → its search token (for spelling fixes)
   for (const [book, chapters] of Object.entries(bible.books)) {
     chapters.forEach((verses, ci) => (verses || []).forEach((v, vi) => {
       if (!v) return;
       const id = refs.length;
       const toks = tokens(v, english);
+      for (const w of clean(v).split(/\s+/)) {
+        if (w.length > 3 && !words.has(w)) { const tk = tokens(w, english)[0]; if (tk && !STOP.has(tk)) words.set(w, tk); }
+      }
       refs.push([book, ci + 1, vi + 1]);
       texts.push(' ' + toks.join(' ') + ' ');
       lengths.push(toks.length);
@@ -73,12 +81,15 @@ export function buildVerseIndex(bible) {
     }));
   }
   const avg = lengths.reduce((a, b) => a + b, 0) / Math.max(1, lengths.length);
-  return { english, refs, texts, lengths, postings, avg, vocab: [...postings.keys()] };
+  return { english, refs, texts, lengths, postings, avg, words: [...words.entries()] };
 }
 
 // Returns [{ book, chapter, verse, score }] best first.
 export function searchVerses(index, query, { limit = 8 } = {}) {
-  const q = tokens(query, index.english).filter((t) => !STOP.has(t) && t.length > 1);
+  // each typed word with its search token
+  const typed = clean(query).split(/\s+/).filter(Boolean).map((raw) => ({ raw, t: tokens(raw, index.english)[0] }))
+    .filter(({ t }) => t && !STOP.has(t) && t.length > 1);
+  const q = typed.map((x) => x.t);
   if (!q.length) return [];
   const N = index.refs.length;
   const scores = new Map();
@@ -95,23 +106,37 @@ export function searchVerses(index, query, { limit = 8 } = {}) {
     }
   };
   const fixed = new Map(); // typed word → the Bible's spelling, for the in-order check
-  for (const t of new Set(q)) {
+  const done = new Set();
+  for (const { raw, t } of typed) {
+    if (done.has(t)) continue;
+    done.add(t);
     if (index.postings.has(t)) { add(t, 1); continue; }
-    // not a word in this Bible: try close spellings
-    if (t.length < 4) continue;
-    const max = t.length >= 7 ? 2 : 1;
-    const near = index.vocab.filter((v) => v[0] === t[0] && editDistance(t, v, max) <= max)
-      .sort((x, y) => index.postings.get(y).size - index.postings.get(x).size).slice(0, 3);
-    for (const v of near) add(v, 0.8);
-    if (near[0]) fixed.set(t, near[0]);
+    // not a word in this Bible: compare the word as typed with the Bible's words as written ("beggining" → "beginning")
+    if (raw.length < 4) continue;
+    const max = raw.length >= 7 ? 2 : 1;
+    // closest spelling first, then the more common word
+    const best = new Map(); // token → distance
+    for (const [w, tk] of index.words) {
+      if (w[0] !== raw[0] || !index.postings.has(tk)) continue;
+      const d = editDistance(raw, w, max);
+      if (d <= max && d < (best.get(tk) ?? 9)) best.set(tk, d);
+    }
+    const near = [...best.entries()].sort((x, y) => x[1] - y[1] || index.postings.get(y[0]).size - index.postings.get(x[0]).size).slice(0, 3);
+    for (const [v, d] of near) add(v, d === 1 ? 0.95 : 0.8);
+    if (near[0]) fixed.set(t, near[0][0]);
   }
   const qq = q.map((t) => fixed.get(t) || t);
   if (!scores.size) return [];
   // words in the same order as typed: a strong sign of the right verse
   const top = [...scores.entries()].sort((x, y) => y[1] - x[1]).slice(0, 200);
   const qJoined = qq.join(' ');
-  const rescored = top.map(([id, s]) => {
+  // how many of the typed words the verse really contains (0–1): below about half, it's a weak match
+  const distinct = [...new Set(qq)];
+  const coverageOf = (text) => distinct.filter((w) => text.includes(` ${w} `)).length / distinct.length;
+  const rescored = top.map(([id, s0]) => {
     const text = index.texts[id];
+    // a verse with all the typed words beats one that repeats a few of them
+    const s = s0 * (0.5 + 0.5 * coverageOf(text));
     let bonus = 0;
     for (let i = 0; i + 1 < qq.length; i++) {
       // the two words in this order, allowing up to two small words between ("lord is my shepherd")
@@ -121,12 +146,9 @@ export function searchVerses(index, query, { limit = 8 } = {}) {
     if (text.includes(' ' + qJoined + ' ')) bonus += 3;
     return [id, s + bonus];
   }).sort((x, y) => y[1] - x[1]);
-  // how many of the typed words the verse really contains (0–1): below about half, it's a weak match
-  const distinct = [...new Set(qq)];
   return rescored.slice(0, limit).map(([id, score]) => {
     const [book, chapter, verse] = index.refs[id];
-    const text = index.texts[id];
-    const coverage = distinct.filter((w) => text.includes(` ${w} `)).length / distinct.length;
+    const coverage = coverageOf(index.texts[id]);
     return { book, chapter, verse, score, coverage };
   });
 }
