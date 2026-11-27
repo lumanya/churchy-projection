@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('mwanga', {
     onChanged: on('displays:changed')
   },
   output: {
+    isOpen: () => ipcRenderer.invoke('output:isOpen'),
     open: () => ipcRenderer.invoke('output:open'),
     close: () => ipcRenderer.invoke('output:close'),
     move: () => ipcRenderer.invoke('output:move'),

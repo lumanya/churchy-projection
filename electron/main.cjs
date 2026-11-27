@@ -72,7 +72,11 @@ function createOperator() {
     title: 'Mwanga', backgroundColor: '#171615', show: false, webPreferences: webPrefs
   });
   operator.removeMenu();
-  operator.once('ready-to-show', () => { operator.maximize(); operator.show(); });
+  operator.once('ready-to-show', () => {
+    operator.maximize(); operator.show();
+    // a projector or TV is already connected: open the output on it straight away
+    if (pickDisplay()) setTimeout(openOutput, 800);
+  });
   operator.on('closed', () => { operator = null; if (output) output.close(); });
   // links open in the normal browser, never inside Mwanga
   operator.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
@@ -146,6 +150,7 @@ ipcMain.handle('displays:list', () => {
     id: d.id, label: `${d.label || 'Screen ' + (i + 1)} · ${d.size.width}×${d.size.height}${d.id === primary.id ? ' (main)' : ''}`
   }));
 });
+ipcMain.handle('output:isOpen', () => !!output);
 ipcMain.handle('output:open', () => { openOutput(); return true; });
 ipcMain.handle('output:close', () => { closeOutput(); return true; });
 ipcMain.handle('output:move', () => { closeOutput(); setTimeout(openOutput, 300); return true; });
@@ -192,7 +197,8 @@ app.whenReady().then(() => {
   createOperator();
   if (process.env.MWANGA_SCREENSHOT) screenshotRun(process.env.MWANGA_SCREENSHOT);
   // when a projector is plugged in or removed, move the output to the right place
-  screen.on('display-added', () => { if (output) { closeOutput(); setTimeout(openOutput, 500); } operator && operator.webContents.send('displays:changed'); });
+  // a projector plugged in during the service: put the output on it
+  screen.on('display-added', () => { closeOutput(); setTimeout(openOutput, 800); operator && operator.webContents.send('displays:changed'); });
   screen.on('display-removed', () => { if (output) { closeOutput(); setTimeout(openOutput, 500); } operator && operator.webContents.send('displays:changed'); });
 });
 

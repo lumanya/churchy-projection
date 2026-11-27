@@ -26,6 +26,7 @@ function browserBridge() {
     },
     displays: { list: async () => [{ id: 1, label: 'This screen (browser preview)' }], onChanged: () => () => {} },
     output: {
+      isOpen: async () => !!(outWin && !outWin.closed),
       open: async () => { outWin = window.open('#/output', 'mwanga-output', 'width=960,height=540'); return true; },
       close: async () => { if (outWin) outWin.close(); return true; },
       move: async () => true,

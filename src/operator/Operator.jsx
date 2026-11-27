@@ -38,6 +38,7 @@ export default function Operator() {
       setSettings(set);
       setBibleList(await api.bible.list());
       setDisplays(await api.displays.list());
+      setOutputOpen(await api.output.isOpen());
       if (saved.session && saved.session.live) setLive(saved.session.live); // back where we were after a crash or power cut
       setReady(true);
     })();
@@ -119,7 +120,10 @@ export default function Operator() {
     if (dir > 0 && items[idx + 1]) return goLive(idx + 1, 0);
     if (dir < 0 && items[idx - 1]) { const prev = slidesOf(items[idx - 1]); return goLive(idx - 1, Math.max(prev.length - 1, 0)); }
   };
+  const sameItem = (a, b) => a.type === b.type && (a.refId ? a.refId === b.refId : JSON.stringify(a.ref) === JSON.stringify(b.ref));
   const addItem = (newItem, showNow) => {
+    const existing = showNow ? items.findIndex((x) => sameItem(x, newItem)) : -1;
+    if (existing >= 0) { goLive(existing, 0); setQuery(''); return; }
     const it = { id: uid(), ...newItem };
     const pos = items.length;
     updateService((list) => [...list, it]);
@@ -219,6 +223,7 @@ export default function Operator() {
           <button type="button" className="mono-btn" aria-label="Language" onClick={() => setSetting({ lang: settings.lang === 'en' ? 'sw' : 'en' })}>
             {settings.lang === 'en' ? <>EN <span className="muted">/ SW</span></> : <>SW <span className="muted">/ EN</span></>}
           </button>
+          <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput} title={outputOpen ? t('projectorOn') : t('projectorOff')}>{outputOpen ? '■ ' + t('projector') : '▶ ' + t('projector')}</button>
           <button type="button" className={black ? 'warn' : ''} onClick={() => setBlack((b) => !b)}>{black ? t('restore') : t('black')}</button>
           <button type="button" onClick={() => setLive(null)}>{t('clear')}</button>
         </div>
@@ -291,6 +296,7 @@ export default function Operator() {
               <strong>{outputOpen ? t('projectorOn') : t('projectorOff')}</strong>
               <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput}>{outputOpen ? '■' : '▶'} {t('display')}</button>
             </div>
+            {displays.length < 2 && <p className="muted small" style={{ margin: 0 }}>{t('noSecond')}</p>}
             <label className="field"><span>{t('display')}</span>
               <select value={settings.displayId ?? ''} onChange={(e) => { setSetting({ displayId: e.target.value ? Number(e.target.value) : null }); setTimeout(() => api.output.move(), 500); }}>
                 <option value="">Auto</option>
