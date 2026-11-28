@@ -60,7 +60,7 @@ export default function Stage() {
 
 // the verse on the preacher's screen: each translation with its tag, the main one first and largest
 function StageVerse({ slide }) {
-  const [box, inner] = useFitText([slide.text, slide.sub], 8, 2.4);
+  const [box, inner] = useFitText([slide.text, slide.sub], 11, 2.4);
   const v = (slide.versions || []);
   return (
     <div className="stage-verse-box" ref={box}>
@@ -82,7 +82,7 @@ function StageVerse({ slide }) {
 
 // song lines and notices: as large as the space allows, centred, like on the projector
 function StageText({ text }) {
-  const [box, inner] = useFitText([text], 12, 3);
+  const [box, inner] = useFitText([text], 15, 3);
   return (
     <div className="stage-text-box" ref={box}>
       <div className="stage-text" ref={inner}>{text}</div>

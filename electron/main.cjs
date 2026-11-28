@@ -974,6 +974,11 @@ async function screenshotRun(dir) {
     const page = await tvWin.webContents.executeJavaScript(`({ hash: location.hash, ref: (document.querySelector('.stage-ref') || {}).innerText || '', text: ((document.querySelector('.stage-verse .stage-now-text') || {}).innerText || '').slice(0, 40), backLink: !!document.querySelector('.stage-back'), nextShown: !!document.querySelector('.stage-next'), hint: (document.querySelector('.stage-hint') || {}).innerText || '' })`);
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-stage.png');
+    // a TV browser often opens the page small and then goes full screen: the text must grow with it
+    const measure = () => tvWin.webContents.executeJavaScript(`(() => { const t = document.querySelector('.stage-verse .stage-now-text') || document.querySelector('.stage-text'); return t ? Math.round(parseFloat(getComputedStyle(t).fontSize) / innerHeight * 1000) / 10 : 0; })()`);
+    page.resize = {};
+    for (const [w, h] of [[480, 300], [1920, 1080], [960, 540]]) { tvWin.setContentSize(w, h); await wait(900); page.resize[w + 'x' + h] = await measure(); }
+    tvWin.setContentSize(1280, 720); await wait(600);
     // a song on the TV: lines fill the screen
     await js(`[...document.querySelectorAll('.svc-main')].find((b) => b.textContent.includes('Asante Bwana')).click()`); await wait(400);
     await js(`document.querySelector('.slides .slide').click()`); await wait(1500);

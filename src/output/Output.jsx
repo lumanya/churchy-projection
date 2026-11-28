@@ -6,21 +6,33 @@ import { activeLook, fontOf, lookById, slideKey } from '../lib/looks.js';
 
 const FADE_MS = 450;
 
-// Shrinks the text until it fits the screen, so long verses never run off the edge.
+// Sizes the text to fill its box without running off the edge: as large as fits, up to max (in vh).
+// Measures again whenever the box changes size (a TV going full screen, a window resized) and once the fonts arrive.
 export function useFitText(deps, max = 9, min = 2.2) {
   const box = useRef(null);
   const inner = useRef(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const b = box.current;
+    const again = () => setTick((n) => n + 1);
+    let ro = null;
+    if (b && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(again); ro.observe(b); }
+    window.addEventListener('resize', again);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(again).catch(() => {});
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', again); };
+  }, []);
   useLayoutEffect(() => {
     const b = box.current, el = inner.current;
     if (!b || !el) return;
-    let s = max;
-    el.style.fontSize = s + 'vh';
-    while (s > min && (el.scrollHeight > b.clientHeight || el.scrollWidth > b.clientWidth)) {
-      s -= 0.2;
-      el.style.fontSize = s + 'vh';
-    }
+    // a box with no size yet (still laying out): wait for the next measurement rather than shrinking to nothing
+    if (b.clientHeight < 10 || b.clientWidth < 10) return;
+    const fits = (s) => { el.style.fontSize = s + 'vh'; return el.scrollHeight <= b.clientHeight + 1 && el.scrollWidth <= b.clientWidth + 1; };
+    if (fits(max)) return;
+    let lo = min, hi = max;
+    for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+    fits(lo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, tick]);
   return [box, inner];
 }
 
