@@ -94,7 +94,8 @@ export default function Operator() {
     const off1 = api.output.onState(setOutputOpen);
     const off2 = api.displays.onChanged(async () => setDisplays(await api.displays.list()));
     const off3 = api.stage.onState(setStageOpen);
-    const off4 = api.remote.onInfo(setRemote);
+    // keep a copy of the network codes in settings too, so they survive even if network.json is lost
+    const off4 = api.remote.onInfo((info) => { setRemote(info); if (info && info.tvCode) setSettings((st) => (st && (st.tvCode !== info.tvCode || st.streamToken !== info.view || st.remotePin !== info.pin) ? { ...st, tvCode: info.tvCode, streamToken: info.view, remotePin: info.pin } : st)); });
     const off5 = api.update.onStatus(setUpdate);
     const off6 = api.remote.onCommand((c) => commandRef.current && commandRef.current(c));
     const off7 = api.listen.onEvent((m) => listenRef.current && listenRef.current(m));

@@ -1149,6 +1149,8 @@ app.whenReady().then(() => {
   setupUpdates();
   keepAwake(readJSON('settings.json', {}).keepAwake !== false);
   if (readJSON('settings.json', {}).remoteOn) startRemote();
+  // test hook: start the network, write its codes to a file and quit (checks that codes survive a restart)
+  if (process.env.MWANGA_NET_CODES) startRemote().then((i) => { fs.writeFileSync(process.env.MWANGA_NET_CODES, JSON.stringify({ tv: i.tvCode, view: i.view, pin: i.pin, urls: i.tvUrls })); app.quit(); });
   if (process.env.MWANGA_SCREENSHOT) screenshotRun(process.env.MWANGA_SCREENSHOT);
   // a projector plugged in during the service: put the output on it
   screen.on('display-added', () => {

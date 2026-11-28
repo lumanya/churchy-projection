@@ -35,6 +35,7 @@
 - 0.13.3: the preacher's screen fills any screen size, also in older smart-TV browsers (the app is now built for older browser engines), and re-measures its text whenever the screen changes or fonts arrive; verses can grow to 11% and songs to 15% of the screen height.
 - 0.13.2: song lines and notices on the preacher's screen grow to fill the space and are centred, like on the projector.
 - 0.13.1: while a verse is on screen, the preacher's screen leaves out NEXT and the verse uses that room in larger text (songs and notices still show NEXT).
+- 0.15.2: the network codes are also mirrored into settings as a second copy; checked across three separate starts that the TV code, OBS link and PIN stay the same.
 - 0.15.1: a TV browser that loads the address while it is being typed no longer locks itself out (only whole wrong codes count; 30 within 10 minutes lock that device for 10 minutes, with a message saying so). The PIN, OBS link and TV code are kept in network.json, so they stay the same after restarts and updates.
 - On the TV, OK fills the whole screen; if the Wi-Fi drops, the page says "Reconnecting to Mwanga…" and comes back by itself.
 
