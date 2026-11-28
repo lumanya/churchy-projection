@@ -775,6 +775,9 @@ export default function Operator() {
                   ))}
                 </div>
               </div>
+              <div className="checks">
+                <label><input type="checkbox" id="keep-awake" checked={settings.keepAwake !== false} onChange={(e) => { setSetting({ keepAwake: e.target.checked }); api.power.keepAwake(e.target.checked); }} /> {t('keepAwake')}</label>
+              </div>
               <div className="row swatches">
                 <label className="swatch"><input type="color" value={settings.theme.bg} onChange={(e) => setSetting({ theme: { ...settings.theme, bg: e.target.value } })} /> {t('background')}</label>
                 <label className="swatch"><input type="color" value={settings.theme.fg} onChange={(e) => setSetting({ theme: { ...settings.theme, fg: e.target.value } })} /> {t('textColour')}</label>

@@ -18,6 +18,7 @@
 
 - The OBS lower third is now a dark panel across the bottom, inside the TV-safe margins, only as tall as its text (never more than about a third of the picture). Text is large (about 4–5% of the picture height), bold and left-aligned; the reference or song title sits on top in the accent colour.
 - Verses show only the main translation on the livestream, with its short name (KJV, NENO) as plain letters; a licence credit, if the main translation needs one, sits small under the panel.
+- 0.14.1: while Mwanga is open, Windows keeps the screen on (no dimming, screen saver or sleep), like a video player. On by default; Projector → "Keep this computer's screen on" turns it off.
 - The full-screen style and the key colours (green, blue, black) stay as before; with a key colour the panel is solid.
 
 ## New in 0.13: preacher's screen on a TV over Wi-Fi

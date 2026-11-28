@@ -15,7 +15,8 @@ const stubs = {
   media: { import: async () => [], remove: async () => true, saveThumb: async () => null, url: () => '', thumbUrl: () => '' },
   video: { report: () => {}, onProgress: noop },
   ai: { status: async () => ({ keys: {}, providers: [] }), setKey: async () => ({ keys: {}, providers: [] }), findVerses: async () => ({ error: 'desktop' }), models: async () => ({ error: 'desktop' }), openKeyPage: async () => false },
-  bibles: { catalog: async () => [], download: async () => ({ error: 'desktop' }), onProgress: noop }
+  bibles: { catalog: async () => [], download: async () => ({ error: 'desktop' }), onProgress: noop },
+  power: { keepAwake: async () => false, isAwake: async () => false }
 };
 
 // pin: phone with control. view: the livestream page, which can only watch.

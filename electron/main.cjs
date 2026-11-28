@@ -1,7 +1,7 @@
 // Mwanga — Electron main process.
 // Windows: the operator screen, the projector output, and the preacher's (stage) screen.
 // Also: file storage, Bible files, the phone-remote server on the church Wi-Fi, and updates.
-const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess, protocol, safeStorage, net } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, shell, session, utilityProcess, protocol, safeStorage, net, powerSaveBlocker } = require('electron');
 const { Readable } = require('node:stream');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -507,6 +507,18 @@ ipcMain.handle('ai:models', async (_e, cfg) => {
   if (r.error) return r;
   return AI.modelList(AI.resolve(cfg).id, r.data);
 });
+
+// ---------- keep the screen awake ----------
+// Like a video player: while Mwanga is open, Windows does not dim or switch off the screen, start the
+// screen saver or put the computer to sleep. On by default; the operator can turn it off.
+let awakeId = null;
+function keepAwake(on) {
+  if (on && awakeId === null) awakeId = powerSaveBlocker.start('prevent-display-sleep');
+  if (!on && awakeId !== null) { powerSaveBlocker.stop(awakeId); awakeId = null; }
+  return awakeId !== null && powerSaveBlocker.isStarted(awakeId);
+}
+ipcMain.handle('power:keepAwake', (_e, on) => keepAwake(!!on));
+ipcMain.handle('power:isAwake', () => awakeId !== null && powerSaveBlocker.isStarted(awakeId));
 
 // ---------- IPC ----------
 ipcMain.handle('app:version', () => app.getVersion());
@@ -1016,6 +1028,16 @@ async function screenshotRun(dir) {
     tvWin.destroy();
     fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, slashPort, on80, page }, null, 1));
   }
+  // the screen stays awake while Mwanga is open, and the switch turns it off and on
+  {
+    const awake = { atStart: await js(`window.mwanga.power.isAwake()`) };
+    await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
+    await js(`document.querySelector('#keep-awake').click()`); await wait(400);
+    awake.afterOff = await js(`window.mwanga.power.isAwake()`);
+    await js(`document.querySelector('#keep-awake').click()`); await wait(400);
+    awake.afterOn = await js(`window.mwanga.power.isAwake()`);
+    fs.writeFileSync(path.join(dir, 'awake-check.json'), JSON.stringify(awake, null, 1));
+  }
   // on a small laptop screen every tab must still be there and clickable
   {
     const sizes = {};
@@ -1046,6 +1068,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && !!operator && wc === operator.webContents);
   createOperator();
   setupUpdates();
+  keepAwake(readJSON('settings.json', {}).keepAwake !== false);
   if (readJSON('settings.json', {}).remoteOn) startRemote();
   if (process.env.MWANGA_SCREENSHOT) screenshotRun(process.env.MWANGA_SCREENSHOT);
   // a projector plugged in during the service: put the output on it
@@ -1061,4 +1084,4 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => { stopRemote(); stopListener(); app.quit(); });
+app.on('window-all-closed', () => { stopRemote(); stopListener(); keepAwake(false); app.quit(); });
