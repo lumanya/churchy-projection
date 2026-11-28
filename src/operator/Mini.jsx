@@ -38,7 +38,23 @@ export function Mini({ slide, theme, live, message }) {
       {media && (media.kind === 'video'
         ? (canPlay ? <video className="media-fit" src={url(media) + (live ? '' : '#t=1')} muted autoPlay={!!live} loop={!!live} playsInline preload="metadata" /> : <div className="mini-inner"><div className="mini-text">▶ {media.name}</div></div>)
         : <img className="media-fit" src={url(media)} alt={media.name || ''} />)}
-      {slide && !media ? (
+      {slide && !media && slide.verse ? (
+        <>
+          <div className="mini-head"><span style={{ color: th.accent }}>{slide.refName}</span>{!slide.sub && versions && versions[0] && <span className="mini-tag second" style={{ borderColor: th.accent, color: th.accent }}>{versions[0]}</span>}</div>
+          <div className={'mini-inner mini-verse' + (dual ? ' dual-' + dual : '')}>
+            <div className="mini-ver">
+              {slide.sub && <span className="mini-tag" style={{ background: th.accent, color: lookById(th.look)?.light ? '#fff' : '#120A05' }}>{versions[0]}</span>}
+              <div className="mini-text"><sup style={{ color: th.accent }}>{slide.verse}</sup>{slide.text}</div>
+            </div>
+            {slide.sub && (
+              <div className="mini-ver">
+                <span className="mini-tag" style={{ borderColor: th.accent, color: th.accent }}>{versions[1]}</span>
+                <div className="mini-sub"><sup style={{ color: th.accent }}>{slide.verse}</sup>{slide.sub}</div>
+              </div>
+            )}
+          </div>
+        </>
+      ) : slide && !media ? (
         <div className={'mini-inner' + (dual ? ' dual-' + dual : '')}>
           {slide.title && <div className="mini-title" style={{ color: th.accent }}>{slide.title}</div>}
           {dual === 'side' ? (
@@ -51,7 +67,7 @@ export function Mini({ slide, theme, live, message }) {
           )}
         </div>
       ) : null}
-      {slide && !media && slide.ref && (
+      {slide && !media && slide.ref && !slide.verse && (
         <div className="mini-ref">
           <span style={{ color: th.accent }}>{slide.ref.split(' · ')[0]}</span>
           {versions && versions.length > 0 && <span className="mini-tags">{versions.map((v, i) => <span key={v + i} className={'mini-tag' + (i ? ' second' : '')} style={i ? { borderColor: th.accent, color: th.accent } : { background: th.accent, color: lookById(th.look)?.light ? '#fff' : '#120A05' }}>{v}</span>)}</span>}

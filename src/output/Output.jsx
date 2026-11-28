@@ -56,6 +56,54 @@ export function SlideWords({ slide, theme, size }) {
   );
 }
 
+// A Bible verse: the reference large at the top; each translation labelled above its own text,
+// the main one with a filled tag, the second outlined; the verse number before each text, as in a printed Bible.
+const tagStyle = (theme, main) => (main
+  ? { background: theme.accent, color: lookById(theme.look)?.light ? '#fff' : '#120A05' }
+  : { borderColor: theme.accent, color: theme.accent });
+
+function VersionLabel({ slide, i, theme }) {
+  const short = (slide.versions || [])[i];
+  const name = (slide.versionNames || [])[i];
+  if (!short) return null;
+  return (
+    <div className="ver-label">
+      <span className={'out-tag' + (i ? ' second' : '')} style={tagStyle(theme, !i)}>{short}</span>
+      {name && name !== short && <span className="ver-name">{name}</span>}
+    </div>
+  );
+}
+
+export function VerseWords({ slide, theme, size }) {
+  const two = !!slide.sub;
+  const layout = two ? (theme.dual === 'side' ? 'side' : 'stacked') : 'single';
+  const [box, inner] = useFitText([slide.text, slide.sub, layout, size], 7.6, 2);
+  const num = <sup className="vnum" style={{ color: theme.accent }}>{slide.verse}</sup>;
+  return (
+    <>
+      <div className="out-head">
+        <span className="out-head-ref" style={{ color: theme.accent }}>{slide.refName}</span>
+        {!two && slide.versions && slide.versions[0] && <span className="out-tag second" style={tagStyle(theme, false)}>{slide.versions[0]}</span>}
+      </div>
+      <div className="out-box verse-box" ref={box}>
+        <div className={'out-inner verse verse-' + layout} ref={inner}>
+          <section className="ver">
+            {two && <VersionLabel slide={slide} i={0} theme={theme} />}
+            <div className="out-text">{num}{slide.text}</div>
+          </section>
+          {two && <div className="ver-rule" />}
+          {two && (
+            <section className="ver">
+              <VersionLabel slide={slide} i={1} theme={theme} />
+              <div className="out-sub">{num}{slide.sub}</div>
+            </section>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // "John 3:16" with the versions as small tags: the main one filled, the second outlined
 export function RefBar({ slide, theme }) {
   if (!slide.ref) return null;
@@ -117,7 +165,12 @@ export default function Output() {
         <div key={l.key} className={'out-layer' + (l.leaving ? ' leaving' : '')}>
           {l.slide.media
             ? <MediaSlide media={l.slide.media} video={l.leaving ? { ...(live.video || {}), volume: 0 } : live.video} report={l.leaving ? () => {} : api.video.report} />
-            : (l.slide.text || l.slide.title) && (
+            : l.slide.verse ? (
+              <>
+                <VerseWords slide={l.slide} theme={theme} size={size} />
+                {l.slide.credit && <div className="out-credit">{l.slide.credit}</div>}
+              </>
+            ) : (l.slide.text || l.slide.title) && (
               <>
                 <SlideWords slide={l.slide} theme={theme} size={size} />
                 <RefBar slide={l.slide} theme={theme} />

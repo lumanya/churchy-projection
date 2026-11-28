@@ -900,6 +900,9 @@ async function screenshotRun(dir) {
     const side = await outState();
     await front(output);
     await snap(output, 'output-royal-side.png');
+    if (!stage) openStage();
+    await wait(1800);
+    if (stage) { await front(stage); await snap(stage, 'stage-verse.png'); }
     await front(operator);
     await js(`document.querySelector('[data-dual="stacked"]').click()`); await wait(300);
     await js(`document.querySelector('[data-look="royal"]').scrollIntoView({ block: 'center' })`); await wait(300);
@@ -930,6 +933,7 @@ async function screenshotRun(dir) {
     const nextPreview = () => js(`(() => { const heads = [...document.querySelectorAll('.mon-head')]; const h = heads[1]; const m = h && h.nextElementSibling; return m ? (m.querySelector('.mini-text') || {}).innerText || '' : ''; })()`);
     const title = () => js(`(document.querySelector('.svc-item.is-live .svc-text > span') || document.querySelector('.svc-item.on .svc-text > span') || {}).textContent || ''`);
     const r = { start: await outT(), startTitle: await title(), nextShown: (await nextPreview()).slice(0, 40) };
+    { const w = output; w.show(); w.moveTop(); w.focus(); await wait(900); await snap(output, 'output-single.png'); operator.show(); operator.moveTop(); operator.focus(); await wait(400); }
     await key('ArrowRight'); await wait(900);
     r.after1 = await outT(); r.title1 = await title();
     await key('ArrowRight'); await wait(900);

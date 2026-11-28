@@ -24,6 +24,10 @@ export function slidesFor(item, { songs, notices, bibles, settings, media }) {
         ref: `${formatReference({ ...item.ref, from: v.n, to: v.n }, lang)} · ${main.short || main.name}${other ? ' · ' + (second.short || second.name) : ''}`,
         // the version names: the main one first, then the second translation's
         versions: [main.short || main.name, ...(other ? [second.short || second.name] : [])],
+        versionNames: [main.name, ...(other ? [second.name] : [])],
+        // the reference alone ("John 3:16") and the verse number, for the header and the number before the text
+        refName: formatReference({ ...item.ref, from: v.n, to: v.n }, lang),
+        verse: v.n,
         // licences such as CC BY-SA ask for credit wherever the text is shown
         credit: [main.credit, other ? second.credit : ''].filter(Boolean).filter((c, i, a) => a.indexOf(c) === i).join(' · ') || undefined
       };

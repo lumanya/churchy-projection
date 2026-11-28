@@ -14,6 +14,14 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.12: clearer verse screen
+
+- **Reference on top**: "John 3:16" is now a large header (about twice the old size), so the preacher and the congregation see it first.
+- **Each translation is labelled above its own text**: the main one with a filled tag and its full name, the second with an outlined tag. No label floats between the texts.
+- **Verse numbers** before each text, as in a printed Bible; they follow the arrows as you read on.
+- Both layouts keep this: **one above the other** (best for long verses) or **side by side**. With one translation, its tag sits quietly at the right of the header.
+- **Preacher screen**: the same large reference and labelled translations, main first and largest. Songs and notices are unchanged.
+
 ## New in 0.11: a premium finish
 
 - **Projector → Look**: 8 designed looks (Classic, Sunrise, Midnight, Royal, Forest, Slate, Parchment, High contrast), each with its own background, colours and typeface. Sunrise, Midnight, Royal and Forest have a soft light that drifts slowly. Colours can still be changed; changing the background colour turns the designed background off.
