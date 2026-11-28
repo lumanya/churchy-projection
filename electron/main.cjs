@@ -64,7 +64,8 @@ function listBibles() {
         const name = (head.match(/"name":"([^"]+)"/) || [])[1] || id;
         const short = (head.match(/"short":"([^"]+)"/) || [])[1] || '';
         const lang = (head.match(/"lang":"([^"]+)"/) || [])[1] || '';
-        out.push({ id, name, short, lang, file: path.join(dir, f), bundled: dir === bundledBibles });
+        const license = (head.match(/"license":"([^"]+)"/) || [])[1] || '';
+        out.push({ id, name, short, lang, license, file: path.join(dir, f), bundled: dir === bundledBibles });
       } catch (_) { /* skip unreadable */ }
     }
   }
@@ -504,6 +505,38 @@ ipcMain.handle('bible:save', (_e, bible) => {
   fs.writeFileSync(path.join(userBibles(), id + '.json'), JSON.stringify({ ...bible, id }));
   return id;
 });
+// ---------- Get more Bibles: open-licensed versions from eBible.org ----------
+// Only the versions in bibleCatalog.json, only from eBible.org. The operator screen unzips and reads them.
+const BIBLE_CATALOG = require('./bibleCatalog.json');
+ipcMain.handle('bibles:catalog', () => BIBLE_CATALOG);
+ipcMain.handle('bibles:download', async (_e, id) => {
+  const entry = BIBLE_CATALOG.find((c) => c.id === id);
+  if (!entry) return { error: 'unknown' };
+  // MWANGA_CATALOG_BASE lets the automatic check use a stand-in server
+  const url = (process.env.MWANGA_CATALOG_BASE || 'https://eBible.org/Scriptures/') + entry.file;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+  try {
+    const res = await net.fetch(url, { signal: controller.signal });
+    if (!res.ok) return { error: 'http', status: res.status };
+    const total = Number(res.headers.get('content-length')) || 0;
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    let last = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(Buffer.from(value));
+      received += value.length;
+      if (Date.now() - last > 250) { last = Date.now(); send(operator, 'bibles:progress', { id, received, total }); }
+    }
+    send(operator, 'bibles:progress', { id, received, total: total || received });
+    return { data: Buffer.concat(chunks) };
+  } catch (e) {
+    return { error: controller.signal.aborted ? 'timeout' : 'offline' };
+  } finally { clearTimeout(timer); }
+});
 ipcMain.handle('bible:remove', (_e, id) => {
   const b = listBibles().find((x) => x.id === id && !x.bundled);
   if (b) fs.unlinkSync(b.file);
@@ -810,6 +843,39 @@ async function screenshotRun(dir) {
     const keys = (await js(`window.mwanga.ai.status()`)).keys;
     fs.writeFileSync(path.join(dir, 'verse-search-check.json'), JSON.stringify({ wordResults, afterEnter, before, aiTitles, afterAi, services, openaiTest, openaiTitles, customTest, keys, keysFileExists: fs.existsSync(aiKeysFile()), oldKeyFileGone: !fs.existsSync(oldAiKeyFile()), seen }, null, 1));
     fake.close();
+  }
+  // Get more Bibles, from a stand-in eBible.org
+  {
+    const { zipSync, strToU8 } = require('fflate');
+    const zip = Buffer.from(zipSync({
+      'swhonen_usfm/00-FRTswhonen.usfm': strToU8('\\id FRT\n\\mt1 Biblia\n'),
+      'swhonen_usfm/02-GENswhonen.usfm': strToU8('\\id GEN\n\\h Mwanzo\n\\c 1\n\\s1 Uumbaji\n\\p\n\\v 1 Hapo mwanzo Mungu aliumba mbingu na dunia.\\f + \\ft maelezo\\f*\n'),
+      'swhonen_usfm/44-JHNswhonen.usfm': strToU8('\\id JHN\n\\c 3\n\\p\n\\v 16 “Kwa maana jinsi hii Mungu aliupenda ulimwengu hata akamtoa Mwanawe wa pekee.\n')
+    }));
+    const store = http.createServer((req, res) => {
+      if (req.url.endsWith('/swhonen_usfm.zip')) { res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': zip.length }); res.end(zip); return; }
+      res.writeHead(404); res.end();
+    });
+    await new Promise((r) => store.listen(0, '127.0.0.1', r));
+    process.env.MWANGA_CATALOG_BASE = `http://127.0.0.1:${store.address().port}/Scriptures/`;
+    await js(`[...document.querySelectorAll('.tabs button')].find((b) => b.textContent === 'Bible').click()`); await wait(300);
+    await js(`document.querySelector('#more-bibles').click()`); await wait(400);
+    const listed = await js(`[...document.querySelectorAll('.store-row strong')].map((s) => s.textContent)`);
+    await js(`document.querySelector('[data-bible="swhonen"] .primary').click()`); await wait(2000);
+    await js(`document.querySelector('[data-bible="engbsb"] .primary').click()`); await wait(1500);
+    await js(`document.querySelector('#more-bibles').scrollIntoView()`); await wait(200);
+    await snap(operator, 'operator-more-bibles.png');
+    const rowState = await js(`[...document.querySelectorAll('.store-row')].map((r) => r.dataset.bible + ': ' + r.querySelector('.store-actions').innerText.replace(/\\s+/g, ' ') + ((r.querySelector('.store-main .accent') || {}).innerText ? ' | ' + r.querySelector('.store-main .accent').innerText : ''))`);
+    await js(`[...document.querySelectorAll('[data-bible="swhonen"] button')].find((b) => b.textContent === 'Use as main').click()`); await wait(1200);
+    const copyright = await js(`(document.querySelector('.bible-copyright') || {}).innerText || ''`);
+    const typeIn2 = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
+    await typeIn2('.search input', 'yh 3:16'); await wait(500);
+    await js(`document.querySelector('.search input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`); await wait(1200);
+    const shown = await output.webContents.executeJavaScript(`({ text: (document.querySelector('.out-text') || {}).innerText || '', ref: (document.querySelector('.out-ref') || {}).innerText || '', credit: (document.querySelector('.out-credit') || {}).innerText || '' })`);
+    await snap(output, 'output-neno.png');
+    const list = (await js(`window.mwanga.bible.list()`)).map((b) => `${b.id} ${b.short} ${b.lang} ${b.license}`);
+    fs.writeFileSync(path.join(dir, 'bibles-check.json'), JSON.stringify({ listed, rowState, copyright, shown, list }, null, 1));
+    store.close();
   }
   app.quit();
 }

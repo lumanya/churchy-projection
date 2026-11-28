@@ -7,6 +7,7 @@ import { importBibleFiles } from '../lib/bibleImport.js';
 import { uid } from '../lib/defaults.js';
 import MediaBrowser from './MediaBrowser.jsx';
 import AiSetup from './AiSetup.jsx';
+import BibleStore from './BibleStore.jsx';
 import { easyWorshipSongs, parseVideoPsalmFile, LockedBookError, pickEasyWorshipFiles } from '../lib/importers.js';
 
 export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash, ai, setAi }) {
@@ -73,10 +74,11 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
   };
 
   const importBible = async () => {
-    const files = await api.openFiles([{ name: 'Bible', extensions: ['xml', 'json', 'usfm', 'sfm', 'txt'] }]);
+    const files = await api.openFiles([{ name: 'Bible', extensions: ['zip', 'xml', 'json', 'usfm', 'sfm', 'txt'] }], true);
     if (!files.length) return;
     try {
-      const b = importBibleFiles(files);
+      const { unzipSync } = await import('fflate');
+      const b = importBibleFiles(files, unzipSync);
       if (/swahili|kiswahili|biblia|sw_|swh/i.test(b.name + files[0].name)) b.lang = 'sw';
       const id = await api.bible.save(b);
       setBibles((m) => ({ ...m, [id]: { ...b, id } }));
@@ -153,12 +155,14 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
           <div className="lib-list">
             {bibleList.map((b) => (
               <div className="lib-row" key={b.id}>
-                <span className="lib-main static"><span className="mono accent num">{(b.lang || '').toUpperCase()}</span><span>{b.name}</span></span>
+                <span className="lib-main static"><span className="mono accent num">{(b.lang || '').toUpperCase()}</span><span>{b.name}</span>{b.license && <span className="chip small">{b.license}</span>}</span>
                 {!b.bundled && <button type="button" className="ghost sm" aria-label={t('remove')} onClick={async () => { await api.bible.remove(b.id); setBibleList(await api.bible.list()); }}>×</button>}
               </div>
             ))}
           </div>
-          <button type="button" className="wide" onClick={importBible}>{t('importBible')} (Zefania XML, USFM, JSON)</button>
+          {main && main.copyright && <p className="muted small bible-copyright" style={{ margin: 0 }}>{main.copyright}</p>}
+          <BibleStore t={t} settings={settings} setSettings={setSettings} bibleList={bibleList} setBibleList={setBibleList} setBibles={setBibles} flash={flash} />
+          <button type="button" className="wide" onClick={importBible}>{t('importBible')} (ZIP, USFM, Zefania XML, JSON)</button>
           <AiSetup t={t} settings={settings} setSettings={setSettings} ai={ai} setAi={setAi} flash={flash} />
         </div>
       )}

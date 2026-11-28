@@ -87,6 +87,11 @@ contextBridge.exposeInMainWorld('mwanga', {
     models: (cfg) => ipcRenderer.invoke('ai:models', cfg),
     openKeyPage: (provider) => ipcRenderer.invoke('ai:openKeyPage', provider)
   },
+  bibles: {
+    catalog: () => ipcRenderer.invoke('bibles:catalog'),
+    download: (id) => ipcRenderer.invoke('bibles:download', id),
+    onProgress: on('bibles:progress')
+  },
   openFiles: (filters, binary) => ipcRenderer.invoke('file:open', filters, !!binary),
   findEasyWorship: () => ipcRenderer.invoke('easyworship:find'),
   findVideoPsalm: () => ipcRenderer.invoke('videopsalm:find')

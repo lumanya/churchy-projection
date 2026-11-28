@@ -21,7 +21,9 @@ export function slidesFor(item, { songs, notices, bibles, settings, media }) {
         label: `${item.ref.chapter}:${v.n}`,
         text: v.text,
         sub: other ? other.text : null,
-        ref: `${formatReference({ ...item.ref, from: v.n, to: v.n }, lang)} · ${main.short || main.name}${other ? ' · ' + (second.short || second.name) : ''}`
+        ref: `${formatReference({ ...item.ref, from: v.n, to: v.n }, lang)} · ${main.short || main.name}${other ? ' · ' + (second.short || second.name) : ''}`,
+        // licences such as CC BY-SA ask for credit wherever the text is shown
+        credit: [main.credit, other ? second.credit : ''].filter(Boolean).filter((c, i, a) => a.indexOf(c) === i).join(' · ') || undefined
       };
     });
   }

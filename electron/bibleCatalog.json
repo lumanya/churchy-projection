@@ -1,0 +1,62 @@
+[
+  {
+    "id": "swhonen",
+    "name": "Neno: Bibilia Takatifu",
+    "short": "NENO",
+    "lang": "sw",
+    "about": "Kiswahili cha kisasa · Modern Swahili (Kiswahili Contemporary Version, 2015)",
+    "license": "CC BY-SA 4.0",
+    "copyright": "Neno: Bibilia Takatifu © 1984, 1989, 2009, 2015 Biblica, Inc. Inatumika chini ya leseni ya Creative Commons Attribution-ShareAlike 4.0. Used under the Creative Commons Attribution-ShareAlike 4.0 licence. Source: eBible.org.",
+    "credit": "© Biblica, Inc. · CC BY-SA 4.0",
+    "file": "swhonen_usfm.zip",
+    "page": "https://ebible.org/details.php?id=swhonen"
+  },
+  {
+    "id": "swhulb",
+    "name": "Biblia Takatifu (Swahili Unlocked Literal Bible)",
+    "short": "ULB",
+    "lang": "sw",
+    "about": "Tafsiri sisisi ya maneno · Word-for-word Swahili (2019)",
+    "license": "CC BY-SA 4.0",
+    "copyright": "Swahili Unlocked Literal Bible © 2019 Door43 World Missions Community. Inatumika chini ya leseni ya Creative Commons Attribution-ShareAlike 4.0. Used under the Creative Commons Attribution-ShareAlike 4.0 licence. Source: eBible.org.",
+    "credit": "© Door43 · CC BY-SA 4.0",
+    "file": "swhulb_usfm.zip",
+    "page": "https://ebible.org/details.php?id=swhulb"
+  },
+  {
+    "id": "engbsb",
+    "name": "Berean Standard Bible",
+    "short": "BSB",
+    "lang": "en",
+    "about": "Modern, accurate English (public domain since 2023)",
+    "license": "Public domain",
+    "copyright": "Berean Standard Bible. Public domain. Source: eBible.org.",
+    "credit": "",
+    "file": "engbsb_usfm.zip",
+    "page": "https://ebible.org/details.php?id=engbsb"
+  },
+  {
+    "id": "engwebp",
+    "name": "World English Bible",
+    "short": "WEB",
+    "lang": "en",
+    "about": "Modern English based on the ASV",
+    "license": "Public domain",
+    "copyright": "World English Bible. Public domain. \"World English Bible\" is a trademark of eBible.org.",
+    "credit": "",
+    "file": "engwebp_usfm.zip",
+    "page": "https://ebible.org/details.php?id=engwebp"
+  },
+  {
+    "id": "eng-asv",
+    "name": "American Standard Version (1901)",
+    "short": "ASV",
+    "lang": "en",
+    "about": "Classic English, close to the KJV",
+    "license": "Public domain",
+    "copyright": "American Standard Version (1901). Public domain. Source: eBible.org.",
+    "credit": "",
+    "file": "eng-asv_usfm.zip",
+    "page": "https://ebible.org/details.php?id=eng-asv"
+  }
+]

@@ -54,6 +54,7 @@ export default function Output() {
               <span className="out-ref-tr">{slide.ref.split(' · ').slice(1).join(' · ')}</span>
             </div>
           )}
+          {slide.credit && <div className="out-credit">{slide.credit}</div>}
         </>
       )}
       {live.message && <div className="out-message" style={{ background: theme.accent }}>{live.message}</div>}

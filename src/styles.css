@@ -132,6 +132,7 @@ h2 { margin: 0; font: 600 17px var(--display); }
 .out-sub { font-size: 0.5em; font-weight: 400; opacity: 0.78; margin-top: 0.8em; line-height: 1.4; }
 .out-ref { position: absolute; left: 8vw; right: 8vw; bottom: 5vh; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,.18); padding-top: 2vh; font-size: 3.4vh; font-weight: 700; }
 .out-ref-tr { font: 500 2vh var(--mono); opacity: 0.6; }
+.out-credit { position: absolute; right: 8vw; bottom: 1.6vh; font: 500 1.4vh var(--mono); opacity: 0.45; z-index: 2; }
 .out-message { position: absolute; left: 0; right: 0; bottom: 0; padding: 2.2vh 4vw; color: #1A0A00; font-size: 4.4vh; font-weight: 700; text-align: center; }
 
 /* ---------- v0.2: tabs on the right, preacher screen, phone remote ---------- */
@@ -260,3 +261,12 @@ body.is-stream { cursor: none; overflow: hidden; }
 .result-head { padding: 8px 14px 4px; font-size: 10px; color: var(--muted); letter-spacing: .6px; border-bottom: 1px solid var(--line); }
 .ai-box { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
 .result.ai-first { background: #241A14; }
+
+/* Library → Bible → Get more Bibles */
+.bible-store { display: flex; flex-direction: column; gap: 6px; }
+.store-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
+.store-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.store-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; flex-shrink: 0; }
+.chip { display: inline-block; padding: 1px 6px; border: 1px solid var(--line); border-radius: 10px; font-size: 11px; margin-left: 6px; opacity: .8; }
+.store-main .chip { margin-left: 0; }
+.stream-credit { font-size: 0.6em; font-weight: 500; opacity: 0.7; color: #fff; }

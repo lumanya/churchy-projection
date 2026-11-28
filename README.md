@@ -14,6 +14,15 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.10: Get more Bibles
+
+- **Library → Bible → Get more Bibles** downloads free, openly licensed versions from eBible.org with one click (3–6 MB each, then offline):
+  - Swahili: **Neno: Bibilia Takatifu** (Biblica, CC BY-SA 4.0) and the **Swahili Unlocked Literal Bible** (Door43, CC BY-SA 4.0)
+  - English: **Berean Standard Bible**, **World English Bible**, **American Standard Version** (public domain)
+- Versions under CC BY-SA show their credit small on the projector and the livestream, and their full copyright note in the Library, as the licence requires.
+- **Import a Bible** now takes a .zip directly (for example any USFM zip from eBible.org). The USFM reader handles word markup, footnotes, cross references, poetry and alternate verse numbers.
+- Copyrighted versions (Union Version, Revised Union, Habari Njema, NIV, NKJV, NLT, Amplified) are not included: they need the publishers' permission. The catalogue lives in `electron/bibleCatalog.json`; add a version there only with a licence that allows it.
+
 ## New in 0.9: Ask AI with any AI service
 
 - **Library → Bible → Ask AI** now lets you choose the service: **Claude (Anthropic)**, **ChatGPT (OpenAI)**, **Gemini (Google)**, **Groq**, or **Other** for any OpenAI-compatible service (OpenRouter, Groq, DeepSeek, Mistral, or Ollama / LM Studio running on the same computer, which works without internet).

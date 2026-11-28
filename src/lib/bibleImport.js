@@ -45,20 +45,27 @@ export function parseZefania(xml, fallbackName = 'Imported Bible') {
   return finish(name, lang, books);
 }
 
-// USFM, the format Bible translators use (for example the Swahili ULB from Door43).
-// Pass the text of one or more book files.
+// USFM, the format Bible translators use (eBible.org, Door43, the Digital Bible Library).
+// Pass the text of one or more book files. Front matter, glossaries and books outside the 66 are skipped.
 export function parseUSFM(texts, name = 'Imported Bible', lang = 'xx') {
   const books = {};
-  for (const text of [].concat(texts)) {
+  for (const raw of [].concat(texts)) {
+    const text = String(raw || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
     const idMatch = text.match(/\\id\s+([0-9A-Z]{3})/);
     if (!idMatch || !BOOK_BY_ID[idMatch[1]]) continue;
     const id = idMatch[1];
     let chapter = 0;
-    // split on markers we care about; drop footnotes and cross references first
     const clean = text
-      .replace(/\\f\s[\s\S]*?\\f\*/g, '')
-      .replace(/\\x\s[\s\S]*?\\x\*/g, '')
-      .replace(/\\(w)\s([^|\\]*)(\|[^\\]*)?\\w\*/g, '$2');
+      // notes, cross references, pictures: not read aloud, not shown
+      .replace(/\\(f|fe|ef|x|ex)\s[\s\S]*?\\\1\*/g, '')
+      .replace(/\\fig\s?[\s\S]*?\\fig\*/g, '')
+      .replace(/\\rq\s[\s\S]*?\\rq\*/g, '')
+      // alternate and published verse numbers ("\va 2\va*")
+      .replace(/\\(va|vp|ca)\s[^\\]*\\\1\*/g, '')
+      // word attributes: \w grace|strong="G5485"\w*, \+w …|lemma="…"\+w*
+      .replace(/\|[^\\|]*?(?=\\\+?[a-z0-9]+\*)/gi, '')
+      // headings and book titles: the whole line
+      .replace(/\\(s\d?|ms\d?|mr|r|sr|sp|d|cl|cd|toc\d|toca\d|h|mt\d?|mte\d?|imt\d?|is\d?|ip|ide|rem|sts|restore|periph|usfm)(\s[^\n]*)?(?=\n|$)/g, '');
     const tokens = clean.split(/(\\c\s+\d+|\\v\s+\d+[\w-]*)/);
     let verse = 0;
     for (const t of tokens) {
@@ -68,8 +75,8 @@ export function parseUSFM(texts, name = 'Imported Bible', lang = 'xx') {
       if (v) { verse = parseInt(v[1], 10); continue; }
       if (chapter && verse) {
         const body = t
-          .replace(/\\(s\d?|ms\d?|mr|r|d|cl|cp|toc\d|h|mt\d?|ide|rem)\b[^\n]*/g, '') // headings
-          .replace(/\\[a-z0-9]+\*?/gi, ' ')
+          .replace(/\\\+?[a-z0-9]+\*?/gi, ' ')
+          .replace(/\s+([,.;:!?’”)])/g, '$1')
           .replace(/\s+/g, ' ')
           .trim();
         if (body) put(books, id, chapter, verse, body);
@@ -77,6 +84,40 @@ export function parseUSFM(texts, name = 'Imported Bible', lang = 'xx') {
     }
   }
   return finish(name, lang, books);
+}
+
+// the text inside a .zip of Bible files (eBible.org, Door43…): [{ name, text }]
+// unzip: fflate's unzipSync
+export function filesFromZip(bytes, unzip) {
+  const entries = unzip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  const dec = new TextDecoder('utf-8');
+  return Object.entries(entries)
+    .filter(([n, d]) => d && d.length && !n.endsWith('/') && /\.(usfm|sfm|ptx|xml|json)$/i.test(n))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([n, d]) => ({ name: n.split('/').pop(), text: dec.decode(d) }));
+}
+
+// a Bible from the catalogue: the zip's books plus the catalogue's name, language and copyright
+export function bibleFromCatalog(entry, bytes, unzip) {
+  const files = filesFromZip(bytes, unzip).filter((f) => /\.(usfm|sfm|ptx)$/i.test(f.name) || /\\id\s+[0-9A-Z]{3}/.test(f.text.slice(0, 300)));
+  const b = parseUSFM(files.map((f) => f.text), entry.name, entry.lang);
+  return withMeta(b, entry);
+}
+
+// keep the short fields first: the app reads them from the start of the file to list Bibles quickly
+export function withMeta(bible, meta) {
+  const { books, ...rest } = bible;
+  return {
+    id: meta.id || rest.id,
+    name: meta.name || rest.name,
+    short: meta.short || rest.short || '',
+    lang: meta.lang || rest.lang,
+    license: meta.license || rest.license || '',
+    credit: meta.credit ?? rest.credit ?? '',
+    copyright: meta.copyright || rest.copyright || '',
+    ...Object.fromEntries(Object.entries(rest).filter(([k]) => !['id', 'name', 'short', 'lang', 'license', 'credit', 'copyright'].includes(k))),
+    books
+  };
 }
 
 // JSON: Mwanga's own format, or the common array format [{ abbrev, name, chapters: [[…]] }] in canon order.
@@ -93,13 +134,20 @@ export function parseBibleJSON(text, name = 'Imported Bible', lang = 'xx') {
   throw new Error('This JSON file is not a Bible Mwanga understands.');
 }
 
-export function importBibleFiles(files) {
-  // files: [{ name, text }]
+export function importBibleFiles(files, unzip) {
+  // files: [{ name, text }] or [{ name, data }] (bytes; .zip files are opened with unzip)
   if (!files.length) throw new Error('No file chosen.');
-  const first = files[0];
-  const base = first.name.replace(/\.[^.]+$/, '');
-  if (files.some((f) => /\.(usfm|sfm)$/i.test(f.name) || /\\id\s+[0-9A-Z]{3}/.test(f.text.slice(0, 200)))) {
-    return parseUSFM(files.map((f) => f.text), base);
+  const dec = new TextDecoder('utf-8');
+  const all = [];
+  for (const f of files) {
+    if (/\.zip$/i.test(f.name) && f.data && unzip) all.push(...filesFromZip(f.data, unzip));
+    else all.push({ name: f.name, text: f.text != null ? f.text : dec.decode(f.data) });
+  }
+  if (!all.length) throw new Error('No Bible files found in the zip.');
+  const first = all[0];
+  const base = files[0].name.replace(/\.[^.]+$/, '').replace(/_usfm$/i, '');
+  if (all.some((f) => /\.(usfm|sfm|ptx)$/i.test(f.name) || /\\id\s+[0-9A-Z]{3}/.test(f.text.slice(0, 300)))) {
+    return parseUSFM(all.map((f) => f.text), base);
   }
   if (/\.json$/i.test(first.name)) return parseBibleJSON(first.text, base);
   return parseZefania(first.text, base);

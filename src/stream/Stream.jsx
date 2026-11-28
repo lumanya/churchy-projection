@@ -65,7 +65,7 @@ export default function Stream() {
             </div>
           </div>
         )}
-        {text && refName && <div className="stream-ref-full" style={{ color: theme.accent }}>{refName}</div>}
+        {text && refName && <div className="stream-ref-full" style={{ color: theme.accent }}>{refName}{slide.credit && <span className="stream-credit"> · {slide.credit}</span>}</div>}
       </div>
     );
   }
@@ -81,7 +81,7 @@ export default function Stream() {
               {text}
             </div>
           </div>
-          {refName && <div className="lower-ref" style={{ color: theme.accent }}>{refName}</div>}
+          {refName && <div className="lower-ref" style={{ color: theme.accent }}>{refName}{slide.credit && <span className="stream-credit"> · {slide.credit}</span>}</div>}
         </div>
       )}
     </div>
