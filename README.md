@@ -18,6 +18,7 @@
 
 - **Preacher → On a TV over Wi-Fi** shows a short address such as `http://192.168.1.20:8765/tv/4821`. Type it in a smart TV's browser (Hisense VIDAA: Home → Apps → Browser) and the TV shows the preacher's screen, driven by the same PC. No cable, no second computer, no second person.
 - Watch only: the TV cannot change slides. The 4-digit TV code keeps other devices on the Wi-Fi out; the address stays the same every week, so a bookmark on the TV works each Sunday.
+- 0.13.1: while a verse is on screen, the preacher's screen leaves out NEXT and the verse uses that room in larger text (songs and notices still show NEXT).
 - On the TV, OK fills the whole screen; if the Wi-Fi drops, the page says "Reconnecting to Mwanga…" and comes back by itself.
 
 ## New in 0.12: clearer verse screen

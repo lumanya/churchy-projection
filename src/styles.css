@@ -467,3 +467,8 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 .stage-hint { position: fixed; left: 50%; bottom: 1.5vh; transform: translateX(-50%); font: 500 2vh var(--mono); color: #8F897F; animation: hint-out 1s ease 12s forwards; }
 @keyframes hint-out { to { opacity: 0; } }
 body.is-stage { cursor: none; }
+
+/* 0.13.1: the preacher's screen as a column; with a verse on screen, NEXT is left out and the verse takes the room */
+.stage { display: flex; flex-direction: column; gap: 2vh; }
+.stage-now { flex: 1; min-height: 0; }
+.stage-next { flex: none; }

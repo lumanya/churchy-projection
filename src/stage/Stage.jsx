@@ -50,17 +50,17 @@ export default function Stage() {
           </>
         )}
       </div>
-      <div className="stage-next">
+      {!(slide && slide.verse) && <div className="stage-next">
         <div className="stage-label">NEXT{live.next ? ' · ' + (live.next.refName || live.next.label || '') : ''}</div>
         <div className="stage-next-text">{live.next ? (live.next.media ? `${live.next.media.kind === 'video' ? '▶ Video' : 'Picture'}: ${live.next.media.name}` : live.next.text) : '—'}</div>
-      </div>
+      </div>}
     </div>
   );
 }
 
 // the verse on the preacher's screen: each translation with its tag, the main one first and largest
 function StageVerse({ slide }) {
-  const [box, inner] = useFitText([slide.text, slide.sub], 6.4, 2.4);
+  const [box, inner] = useFitText([slide.text, slide.sub], 8, 2.4);
   const v = (slide.versions || []);
   return (
     <div className="stage-verse-box" ref={box}>

@@ -971,7 +971,7 @@ async function screenshotRun(dir) {
     const tvWin = new BrowserWindow({ width: 1280, height: 720, show: true, useContentSize: true });
     await tvWin.loadURL(`http://127.0.0.1:${info.port}/tv/${info.tvCode}`);
     await wait(2500);
-    const page = await tvWin.webContents.executeJavaScript(`({ hash: location.hash, ref: (document.querySelector('.stage-ref') || {}).innerText || '', text: ((document.querySelector('.stage-verse .stage-now-text') || {}).innerText || '').slice(0, 40), backLink: !!document.querySelector('.stage-back'), hint: (document.querySelector('.stage-hint') || {}).innerText || '' })`);
+    const page = await tvWin.webContents.executeJavaScript(`({ hash: location.hash, ref: (document.querySelector('.stage-ref') || {}).innerText || '', text: ((document.querySelector('.stage-verse .stage-now-text') || {}).innerText || '').slice(0, 40), backLink: !!document.querySelector('.stage-back'), nextShown: !!document.querySelector('.stage-next'), hint: (document.querySelector('.stage-hint') || {}).innerText || '' })`);
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-stage.png');
     tvWin.destroy();
