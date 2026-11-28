@@ -20,6 +20,7 @@
 - **Each translation is labelled above its own text**: the main one with a filled tag and its full name, the second with an outlined tag. No label floats between the texts.
 - **Verse numbers** before each text, as in a printed Bible; they follow the arrows as you read on.
 - Both layouts keep this: **one above the other** (best for long verses) or **side by side**. With one translation, its tag sits quietly at the right of the header.
+- 0.12.2: translation labels are just the short name (KJV, NENO) as plain text, no box and no full name; the main one in the accent colour, the second softer. Same on the Preacher screen and previews.
 - 0.12.1: Main and Second translation sit one above the other near the top of the Projector tab (a long Bible name had pushed Second translation off the panel).
 - **Preacher screen**: the same large reference and labelled translations, main first and largest. Songs and notices are unchanged.
 

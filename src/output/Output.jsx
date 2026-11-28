@@ -58,20 +58,11 @@ export function SlideWords({ slide, theme, size }) {
 
 // A Bible verse: the reference large at the top; each translation labelled above its own text,
 // the main one with a filled tag, the second outlined; the verse number before each text, as in a printed Bible.
-const tagStyle = (theme, main) => (main
-  ? { background: theme.accent, color: lookById(theme.look)?.light ? '#fff' : '#120A05' }
-  : { borderColor: theme.accent, color: theme.accent });
-
 function VersionLabel({ slide, i, theme }) {
   const short = (slide.versions || [])[i];
-  const name = (slide.versionNames || [])[i];
   if (!short) return null;
-  return (
-    <div className="ver-label">
-      <span className={'out-tag' + (i ? ' second' : '')} style={tagStyle(theme, !i)}>{short}</span>
-      {name && name !== short && <span className="ver-name">{name}</span>}
-    </div>
-  );
+  // the short name only, as plain text: the main one in the accent colour, the second a little softer
+  return <div className="ver-label"><span className={'ver-tag' + (i ? ' second' : '')} style={{ color: theme.accent }}>{short}</span></div>;
 }
 
 export function VerseWords({ slide, theme, size }) {
@@ -83,7 +74,7 @@ export function VerseWords({ slide, theme, size }) {
     <>
       <div className="out-head">
         <span className="out-head-ref" style={{ color: theme.accent }}>{slide.refName}</span>
-        {!two && slide.versions && slide.versions[0] && <span className="out-tag second" style={tagStyle(theme, false)}>{slide.versions[0]}</span>}
+        {!two && slide.versions && slide.versions[0] && <span className="ver-tag second" style={{ color: theme.accent }}>{slide.versions[0]}</span>}
       </div>
       <div className="out-box verse-box" ref={box}>
         <div className={'out-inner verse verse-' + layout} ref={inner}>

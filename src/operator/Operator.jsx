@@ -5,7 +5,7 @@ import { aiConfig, aiReady } from '../lib/aiConfig.js';
 import { LOOKS, applyLook } from '../lib/looks.js';
 import { nextVerseRef, prevVerseRef, nextVerseOnly } from '../lib/verseNav.js';
 
-const LOOK_SAMPLE = { text: 'The LORD is my shepherd;\nI shall not want.', ref: 'Psalm 23:1 · KJV', versions: ['KJV'] };
+const LOOK_SAMPLE = { text: 'The LORD is my shepherd; I shall not want.', ref: 'Psalm 23:1 · KJV', refName: 'Psalm 23:1', verse: 1, versions: ['KJV'] };
 import { defaultLibrary, defaultSettings, uid } from '../lib/defaults.js';
 import { slidesFor } from '../lib/slides.js';
 import { parseReference, formatReference, getVerses } from '../lib/bibleRef.js';

@@ -54,12 +54,12 @@ function StageVerse({ slide }) {
     <div className="stage-verse-box" ref={box}>
       <div className="stage-verse" ref={inner}>
         <div className="stage-ver">
-          {v[0] && <span className="stage-tag">{v[0]}</span>}
+          {v[0] && <span className="stage-vtag">{v[0]}</span>}
           <div className="stage-now-text"><sup>{slide.verse}</sup>{slide.text}</div>
         </div>
         {slide.sub && (
           <div className="stage-ver second">
-            {v[1] && <span className="stage-tag second">{v[1]}</span>}
+            {v[1] && <span className="stage-vtag second">{v[1]}</span>}
             <div className="stage-sub-text"><sup>{slide.verse}</sup>{slide.sub}</div>
           </div>
         )}

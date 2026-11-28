@@ -40,15 +40,15 @@ export function Mini({ slide, theme, live, message }) {
         : <img className="media-fit" src={url(media)} alt={media.name || ''} />)}
       {slide && !media && slide.verse ? (
         <>
-          <div className="mini-head"><span style={{ color: th.accent }}>{slide.refName}</span>{!slide.sub && versions && versions[0] && <span className="mini-tag second" style={{ borderColor: th.accent, color: th.accent }}>{versions[0]}</span>}</div>
+          <div className="mini-head"><span style={{ color: th.accent }}>{slide.refName}</span>{!slide.sub && versions && versions[0] && <span className="mini-vtag second" style={{ color: th.accent }}>{versions[0]}</span>}</div>
           <div className={'mini-inner mini-verse' + (dual ? ' dual-' + dual : '')}>
             <div className="mini-ver">
-              {slide.sub && <span className="mini-tag" style={{ background: th.accent, color: lookById(th.look)?.light ? '#fff' : '#120A05' }}>{versions[0]}</span>}
+              {slide.sub && <span className="mini-vtag" style={{ color: th.accent }}>{versions[0]}</span>}
               <div className="mini-text"><sup style={{ color: th.accent }}>{slide.verse}</sup>{slide.text}</div>
             </div>
             {slide.sub && (
               <div className="mini-ver">
-                <span className="mini-tag" style={{ borderColor: th.accent, color: th.accent }}>{versions[1]}</span>
+                <span className="mini-vtag second" style={{ color: th.accent }}>{versions[1]}</span>
                 <div className="mini-sub"><sup style={{ color: th.accent }}>{slide.verse}</sup>{slide.sub}</div>
               </div>
             )}

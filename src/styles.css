@@ -451,3 +451,13 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 .col-right { overflow-x: hidden; }
 .field { min-width: 0; }
 .field > select, .field > input { width: 100%; min-width: 0; text-overflow: ellipsis; }
+
+/* 0.12.2: translation labels are the short name only, plain text */
+.ver-tag { font: 700 2.5vh var(--mono); letter-spacing: 0.14em; line-height: 1; }
+.ver-tag.second { opacity: 0.72; }
+.out-head .ver-tag { font-size: 2.4vh; }
+.ver-label { gap: 0; }
+.mini-vtag { font: 700 3.6cqh var(--mono); letter-spacing: .12em; line-height: 1; }
+.mini-vtag.second { opacity: .72; }
+.stage-vtag { font: 700 2.4vh var(--mono); letter-spacing: .14em; color: var(--accent-soft); }
+.stage-vtag.second { opacity: .72; }
