@@ -916,6 +916,28 @@ async function screenshotRun(dir) {
     await js(`[...document.querySelectorAll('.top-actions button')].find((b) => b.textContent.includes('Restore')).click()`); await wait(300);
     fs.writeFileSync(path.join(dir, 'looks-check.json'), JSON.stringify({ looks, stacked, side, black }, null, 1));
   }
+  // → after the last verse of a passage reads on; ← before the first reads back
+  {
+    const key = (k) => js(`document.activeElement && document.activeElement.blur(); window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true }))`);
+    const setSel = (sel, value) => js(`(() => { const s = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(value)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
+    await setSel('#main-bible', 'kjv'); await wait(300);
+    await setSel('#second-bible', ''); await wait(600);
+    const typeIn4 = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
+    await typeIn4('.search input', 'Romans 8:28'); await wait(500);
+    await js(`document.querySelector('.search input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`); await wait(1000);
+    const outT = () => output.webContents.executeJavaScript(`((document.querySelector('.out-layer:not(.leaving) .out-text') || {}).innerText || '').slice(0, 40)`);
+    const nextPreview = () => js(`(() => { const heads = [...document.querySelectorAll('.mon-head')]; const h = heads[1]; const m = h && h.nextElementSibling; return m ? (m.querySelector('.mini-text') || {}).innerText || '' : ''; })()`);
+    const title = () => js(`(document.querySelector('.svc-item.is-live .svc-text > span') || document.querySelector('.svc-item.on .svc-text > span') || {}).textContent || ''`);
+    const r = { start: await outT(), startTitle: await title(), nextShown: (await nextPreview()).slice(0, 40) };
+    await key('ArrowRight'); await wait(900);
+    r.after1 = await outT(); r.title1 = await title();
+    await key('ArrowRight'); await wait(900);
+    r.after2 = await outT(); r.title2 = await title();
+    await key('ArrowLeft'); await key('ArrowLeft'); await key('ArrowLeft'); await wait(900);
+    r.back = await outT(); r.titleBack = await title();
+    fs.writeFileSync(path.join(dir, 'next-verse-check.json'), JSON.stringify(r, null, 1));
+  }
   // on a small laptop screen every tab must still be there and clickable
   {
     const sizes = {};

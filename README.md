@@ -20,6 +20,7 @@
 - **Two translations**: the main version leads in full size; the second follows a little smaller, in a softer colour, still readable from the back. Choose one above the other (with a labelled divider) or side by side. Version tags (main filled, second outlined) sit in the reference bar.
 - **Between slides**: a gentle fade (or a cut). Black screen fades too; notices slide up.
 - **Typography**: balanced line breaks, a soft shadow on designed and picture backgrounds, a new serif (Source Serif 4) for Royal and Parchment.
+- 0.11.2: **read on with the arrows**. At the last verse of a passage, → shows the next verse (the passage grows, e.g. Romans 8:28 → 8:28-29) and the Next preview shows it in advance; at the end of a chapter the next chapter starts as a new item. ← at the first verse adds the verse before. ↑ ↓ move between items in the order of service. Page Up / Page Down (presentation clickers) and the phone remote behave like ← →.
 - 0.11.1: fixed the right-hand tab bar (Projector, Preacher, Stream, Phone, Listen) collapsing on laptop screens; it now stays in view while the column scrolls. Main and second translation are chosen together in the Projector tab, with a swap button.
 - **Operator**: one icon set (Lucide) on the top bar, tabs and service list; restyled dropdowns, sliders, colour pickers and scrollbars; a calmer verse-finder card; the Library no longer scrolls sideways; smoother hover, press, modal and toast states.
 

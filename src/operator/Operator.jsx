@@ -3,6 +3,7 @@ import { api, inElectron } from '../bridge.js';
 import { makeT } from '../lib/i18n.js';
 import { aiConfig, aiReady } from '../lib/aiConfig.js';
 import { LOOKS, applyLook } from '../lib/looks.js';
+import { nextVerseRef, prevVerseRef, nextVerseOnly } from '../lib/verseNav.js';
 
 const LOOK_SAMPLE = { text: 'The LORD is my shepherd;\nI shall not want.', ref: 'Psalm 23:1 · KJV', versions: ['KJV'] };
 import { defaultLibrary, defaultSettings, uid } from '../lib/defaults.js';
@@ -161,13 +162,20 @@ export default function Operator() {
     return it ? slidesOf(it)[live.index] || null : null;
   }, [live, items, slidesOf]);
 
+  const bibleOf = useCallback((it) => (it && it.ref ? bibles[it.ref.bibleId] || bibles[settings?.mainBible] : null), [bibles, settings?.mainBible]);
   const nextSlide = useMemo(() => {
     if (!live || live.custom) return slides[0] || null;
     const idx = items.findIndex((i) => i.id === live.itemId);
     const cur = idx >= 0 ? slidesOf(items[idx]) : [];
     if (cur[live.index + 1]) return cur[live.index + 1];
+    // at the end of a Bible passage, → reads on: show the next verse
+    const it = items[idx];
+    if (it && it.type === 'bible') {
+      const one = nextVerseOnly(bibleOf(it), it.ref);
+      if (one) return slidesOf({ ...it, ref: one })[0] || null;
+    }
     return items[idx + 1] ? slidesOf(items[idx + 1])[0] || null : null;
-  }, [live, items, slides, slidesOf]);
+  }, [live, items, slides, slidesOf, bibleOf]);
 
   const liveItemIndex = live && !live.custom ? items.findIndex((i) => i.id === live.itemId) : -1;
   const liveSlides = useMemo(() => (liveItemIndex >= 0 ? slidesOf(items[liveItemIndex]) : []), [liveItemIndex, items, slidesOf]);
@@ -286,8 +294,43 @@ export default function Operator() {
     const cur = slidesOf(items[idx]);
     const n = live.index + dir;
     if (n >= 0 && n < cur.length) return goLive(idx, n);
+    // past the end (or start) of a Bible passage: keep reading, verse by verse
+    const it = items[idx];
+    if (it && it.type === 'bible' && readOn(idx, it, dir)) return undefined;
     if (dir > 0 && items[idx + 1]) return goLive(idx + 1, 0);
     if (dir < 0 && items[idx - 1]) { const prev = slidesOf(items[idx - 1]); return goLive(idx - 1, Math.max(prev.length - 1, 0)); }
+  };
+  // the passage on screen grows by a verse (John 3:16 → 3:16-17); a new chapter becomes its own item after it
+  const readOn = (idx, it, dir) => {
+    const lang = bibleOf(it)?.lang === 'sw' ? 'sw' : 'en';
+    if (dir > 0) {
+      const nx = nextVerseRef(bibleOf(it), it.ref);
+      if (!nx) return false;
+      followRef.current = { lastMoveAt: Date.now(), left: null };
+      if (nx.kind === 'extend') {
+        updateService((list) => list.map((x) => (x.id === it.id ? { ...x, ref: nx.ref, title: formatReference(nx.ref, lang) } : x)));
+        setLive({ itemId: it.id, index: (nx.ref.to - (nx.ref.from || 1)) });
+      } else {
+        const fresh = { id: uid(), type: 'bible', ref: nx.ref, title: formatReference(nx.ref, lang), ...(it.bg !== undefined ? { bg: it.bg } : {}) };
+        updateService((list) => { const c = [...list]; c.splice(idx + 1, 0, fresh); return c; });
+        setSelected(idx + 1);
+        setLive({ itemId: fresh.id, index: 0 });
+      }
+      setBlack(false);
+      return true;
+    }
+    const pv = prevVerseRef(it.ref);
+    if (!pv) return false;
+    followRef.current = { lastMoveAt: Date.now(), left: null };
+    updateService((list) => list.map((x) => (x.id === it.id ? { ...x, ref: pv, title: formatReference(pv, lang) } : x)));
+    setLive({ itemId: it.id, index: 0 });
+    setBlack(false);
+    return true;
+  };
+  // the next or previous item in the order of service
+  const stepItem = (dir) => {
+    const idx = live && !live.custom ? items.findIndex((i) => i.id === live.itemId) : selected - dir;
+    if (items[idx + dir]) goLive(idx + dir, 0);
   };
   const sameItem = (a, b) => a.type === b.type && (a.refId ? a.refId === b.refId : JSON.stringify(a.ref) === JSON.stringify(b.ref));
   const addItem = (newItem, showNow, slideIndex = 0) => {
@@ -342,8 +385,10 @@ export default function Operator() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); searchRef.current?.focus(); return; }
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || editing) return;
-      if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); step(1); }
-      else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); step(-1); }
+      if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); step(1); }
+      else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); step(-1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); stepItem(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); stepItem(-1); }
       else if (e.key.toLowerCase() === 'b' || e.key === '.') setBlack((b) => !b);
       else if (e.key.toLowerCase() === 'c') setLive(null);
       else if (/^[1-9]$/.test(e.key) && slides[+e.key - 1]) goLive(selected, +e.key - 1);
