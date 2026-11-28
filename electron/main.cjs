@@ -1063,6 +1063,32 @@ async function screenshotRun(dir) {
     const folders = { media: startFolder('media'), bible: startFolder('open:Bible'), songs: startFolder('open:Songs') || null, gone: (rememberFolder('open:Gone', ['/no/such/folder/a.txt']), startFolder('open:Gone') || null) };
     fs.writeFileSync(path.join(dir, 'folders-check.json'), JSON.stringify(folders, null, 1));
   }
+  // the visual background picker and the search results panel
+  {
+    const hasMedia = await js(`!!document.querySelector('#item-bg')`);
+    const r = { hasMedia };
+    if (hasMedia) {
+      await js(`document.querySelector('#item-bg').click()`); await wait(1500);
+      r.tiles = await js(`[...document.querySelectorAll('.bgp-tile')].map((b) => b.dataset.bg === 'default' || b.dataset.bg === 'none' ? b.dataset.bg : b.querySelector('.bgp-name').textContent)`);
+      r.thumbs = await js(`[...document.querySelectorAll('.bgp-tile img')].filter((i) => i.complete && i.naturalWidth > 0).length`);
+      await snap(operator, 'operator-bg-picker.png');
+      await js(`[...document.querySelectorAll('.bgp-tile')].find((b) => (b.querySelector('.bgp-name') || {}).textContent === 'worship-background').click()`); await wait(800);
+      r.chosen = await js(`document.querySelector('#item-bg .bgp-label').textContent`);
+      r.outputBg = await output.webContents.executeJavaScript(`!!document.querySelector('.bg-layer video')`);
+    }
+    const typeIn5 = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
+    await typeIn5('.search input', 'grace'); await wait(700);
+    r.panel = await js(`(() => { const p = document.querySelector('.results'); if (!p) return null; const b = p.getBoundingClientRect(); return { width: Math.round(b.width), rows: document.querySelectorAll('.result-row').length, heads: [...document.querySelectorAll('.result-head')].map((h) => h.textContent), close: !!document.querySelector('#results-close') }; })()`);
+    await snap(operator, 'operator-search.png');
+    await js(`document.querySelector('#results-close').click()`); await wait(300);
+    r.closedByButton = await js(`!document.querySelector('.results')`);
+    await js(`document.querySelector('.search input').dispatchEvent(new Event('focus'))`);
+    await typeIn5('.search input', 'grace '); await wait(500);
+    r.reopened = await js(`!!document.querySelector('.results')`);
+    await js(`document.querySelector('.col-mid').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`); await wait(300);
+    r.closedByClickAway = await js(`!document.querySelector('.results')`);
+    fs.writeFileSync(path.join(dir, 'picker-search-check.json'), JSON.stringify(r, null, 1));
+  }
   // on a small laptop screen every tab must still be there and clickable
   {
     const sizes = {};

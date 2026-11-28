@@ -12,6 +12,7 @@ import { parseReference, formatReference, getVerses } from '../lib/bibleRef.js';
 import Library from './Library.jsx';
 import { SongEditor, NoticeEditor, ServiceEditor } from './Editors.jsx';
 import { Mini, Logo } from './Mini.jsx';
+import BackgroundPicker from './BackgroundPicker.jsx';
 import { MonitorPlay, MonitorOff, EyeOff, Eye, Eraser, Monitor, Presentation, Radio, Smartphone, Ear, Music, BookOpen, Megaphone, Image as ImageIcon, Type, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { formatTimer } from '../stage/timer.js';
 import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
@@ -63,6 +64,7 @@ export default function Operator() {
   const [indexReady, setIndexReady] = useState(0);
   const [ai, setAi] = useState({ keys: {}, providers: [] });
   const [aiResult, setAiResult] = useState(null); // { query, loading, verses, error }
+  const [resultsOpen, setResultsOpen] = useState(true);
   const searchRef = useRef(null);
   const commandRef = useRef(null);
   const t = makeT(settings?.lang);
@@ -433,6 +435,14 @@ export default function Operator() {
     }
     return { verse, songs, verses };
   }, [query, library, bibles, settings, indexReady]);
+  // the search results close when clicking anywhere else
+  useEffect(() => {
+    if (!results || !resultsOpen) return undefined;
+    const away = (e) => { if (!e.target.closest || (!e.target.closest('.results') && !e.target.closest('.search-box'))) setResultsOpen(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [results, resultsOpen]);
+
 
   // a verse as a search result, with its text from Mwanga's own Bible
   function verseResult(ref) {
@@ -509,73 +519,64 @@ export default function Operator() {
           <label className="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
             <span className="sr">{t('search')}</span>
-            <input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')}
+            <input ref={searchRef} value={query} onChange={(e) => { setQuery(e.target.value); setResultsOpen(true); }} onFocus={() => setResultsOpen(true)} placeholder={t('search')}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
+                if (e.key === 'Escape') { setResultsOpen(false); e.currentTarget.blur(); }
                 if (e.key === 'Enter' && results?.verse) addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title }, true);
                 else if (e.key === 'Enter' && results?.songs[0]) { const s = results.songs[0]; addItem({ type: 'song', refId: s.id, title: s.title }, true); }
                 else if (e.key === 'Enter' && results?.verses[0]) addItem({ type: 'bible', ref: results.verses[0].ref, title: results.verses[0].title }, true);
               }} />
             <kbd>CTRL K</kbd>
           </label>
-          {results && (
-            <div className="results" role="listbox">
-              {results.verse && (
-                <div className="result">
-                  <div><strong>{results.verse.title}</strong><span className="muted"> · {results.verse.preview.slice(0, 110)}…</span></div>
-                  <div className="result-actions">
-                    <button type="button" className="primary sm" onClick={() => addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title }, true)}>{t('showNow')}</button>
-                    <button type="button" className="sm" onClick={() => addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title })}>{t('addToService')}</button>
+          {results && resultsOpen && (
+            <div className="results" role="dialog" aria-label={t('search')}>
+              <div className="results-top">
+                <span className="muted small">{t('resultsFor')} <strong className="results-q">“{query.trim()}”</strong></span>
+                <button type="button" id="results-close" className="ghost icon-only" aria-label={t('closeResults')} title={t('closeResults') + ' (Esc)'} onClick={() => setResultsOpen(false)}><X size={16} /></button>
+              </div>
+              <div className="results-body">
+                {results.verse && (
+                  <>
+                    <div className="result-head mono">{t('bible').toUpperCase()}</div>
+                    <ResultRow kind="verse" t={t} title={results.verse.title} preview={results.verse.preview}
+                      onShow={() => addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title }, true)}
+                      onAdd={() => addItem({ type: 'bible', ref: results.verse.ref, title: results.verse.title })} />
+                  </>
+                )}
+                {results.songs.length > 0 && <div className="result-head mono">{t('songs').toUpperCase()}</div>}
+                {results.songs.map((sg) => (
+                  <ResultRow key={sg.id} kind="song" t={t} title={sg.title} badge={sg.number ? `${sg.book ? sg.book + ' ' : ''}${sg.number}` : sg.book}
+                    preview={firstLines(sg.lyrics)}
+                    onShow={() => addItem({ type: 'song', refId: sg.id, title: sg.title }, true)}
+                    onAdd={() => addItem({ type: 'song', refId: sg.id, title: sg.title })} />
+                ))}
+                {results.verses.length > 0 && <div className="result-head mono">{t('versesWithWords')}</div>}
+                {results.verses.map((v) => (
+                  <ResultRow key={v.title} kind="verse" t={t} title={v.title} preview={v.preview}
+                    onShow={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}
+                    onAdd={() => addItem({ type: 'bible', ref: v.ref, title: v.title })} />
+                ))}
+                {aiResult && aiResult.query === query.trim() && (
+                  <>
+                    <div className="result-head mono">{t('aiSuggests')}</div>
+                    {aiResult.loading && <div className="result muted">{t('aiThinking')}</div>}
+                    {aiResult.error && <div className="result accent">{t('aiError_' + aiResult.error)}</div>}
+                    {aiResult.verses && !aiResult.verses.length && <div className="result muted">{t('aiNothing')}</div>}
+                    {(aiResult.verses || []).map((v) => (
+                      <ResultRow key={'ai' + v.title} kind="verse" t={t} title={v.title} preview={v.preview}
+                        onShow={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}
+                        onAdd={() => addItem({ type: 'bible', ref: v.ref, title: v.title })} />
+                    ))}
+                  </>
+                )}
+                {!results.verse && looksLikeVerseWords(query) && !(aiResult && aiResult.query === query.trim() && !aiResult.error) && (
+                  <div className={'result' + (results.verses.length ? '' : ' ai-first')}>
+                    <span className="muted small">{aiOn ? t('aiOffer') : t('aiSetupHint')}</span>
+                    {aiOn && <button type="button" id="ask-ai" className="sm" onClick={askAi} disabled={aiResult && aiResult.loading}>✦ {t('askAi')}</button>}
                   </div>
-                </div>
-              )}
-              {results.songs.map((s) => (
-                <div className="result" key={s.id}>
-                  <div><span className="mono accent">{s.number || ''}</span> <strong>{s.title}</strong> <span className="muted">{s.book}</span></div>
-                  <div className="result-actions">
-                    <button type="button" className="primary sm" onClick={() => addItem({ type: 'song', refId: s.id, title: s.title }, true)}>{t('showNow')}</button>
-                    <button type="button" className="sm" onClick={() => addItem({ type: 'song', refId: s.id, title: s.title })}>{t('addToService')}</button>
-                  </div>
-                </div>
-              ))}
-              {results.verses.length > 0 && (
-                <>
-              {results.verses.length > 0 && <div className="result-head mono">{t('versesWithWords')}</div>}
-              {results.verses.map((v) => (
-                <div className="result" key={v.title}>
-                  <div><strong>{v.title}</strong><span className="muted"> · {v.preview.slice(0, 120)}{v.preview.length > 120 ? '…' : ''}</span></div>
-                  <div className="result-actions">
-                    <button type="button" className="primary sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}>{t('showNow')}</button>
-                    <button type="button" className="sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title })}>{t('addToService')}</button>
-                  </div>
-                </div>
-              ))}
-                </>
-              )}
-              {aiResult && aiResult.query === query.trim() && (
-                <>
-                  <div className="result-head mono">{t('aiSuggests')}</div>
-                  {aiResult.loading && <div className="result muted">{t('aiThinking')}</div>}
-                  {aiResult.error && <div className="result accent">{t('aiError_' + aiResult.error)}</div>}
-                  {aiResult.verses && !aiResult.verses.length && <div className="result muted">{t('aiNothing')}</div>}
-                  {(aiResult.verses || []).map((v) => (
-                    <div className="result" key={'ai' + v.title}>
-                      <div><strong>{v.title}</strong><span className="muted"> · {v.preview.slice(0, 120)}{v.preview.length > 120 ? '…' : ''}</span></div>
-                      <div className="result-actions">
-                        <button type="button" className="primary sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title }, true)}>{t('showNow')}</button>
-                        <button type="button" className="sm" onClick={() => addItem({ type: 'bible', ref: v.ref, title: v.title })}>{t('addToService')}</button>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-              {!results.verse && looksLikeVerseWords(query) && !(aiResult && aiResult.query === query.trim() && !aiResult.error) && (
-                <div className={'result' + (results.verses.length ? '' : ' ai-first')}>
-                  <span className="muted small">{aiOn ? t('aiOffer') : t('aiSetupHint')}</span>
-                  {aiOn && <button type="button" id="ask-ai" className="sm" onClick={askAi} disabled={aiResult && aiResult.loading}>✦ {t('askAi')}</button>}
-                </div>
-              )}
-              {!results.verse && !results.songs.length && !results.verses.length && !looksLikeVerseWords(query) && <div className="result muted">{t('notFound')}</div>}
+                )}
+                {!results.verse && !results.songs.length && !results.verses.length && !looksLikeVerseWords(query) && <div className="result muted">{t('notFound')}</div>}
+              </div>
             </div>
           )}
         </div>
@@ -619,16 +620,11 @@ export default function Operator() {
           <div className="mid-head">
             <h2>{item ? item.title : '—'}</h2>
             {item && item.type !== 'media' && (library.media || []).length > 0 && (
-              <label className="swatch">{t('background')}
-                <select className="bg-pick" value={item.bg === undefined ? '' : item.bg} onChange={(e) => {
-                  const v = e.target.value;
-                  updateService((list) => list.map((x) => (x.id === item.id ? { ...x, bg: v === '' ? undefined : v } : x)));
-                }}>
-                  <option value="">{t('defaultBg')}</option>
-                  <option value="none">{t('none')}</option>
-                  {library.media.map((m) => <option key={m.id} value={m.id}>{m.kind === 'video' ? '▶ ' : ''}{m.name}</option>)}
-                </select>
-              </label>
+              <div className="swatch">{t('background')}
+                <BackgroundPicker t={t} id="item-bg" media={library.media} allowDefault value={item.bg === undefined ? '' : item.bg}
+                  defaultMedia={(library.media || []).find((m) => m.id === settings.theme.bgMedia)}
+                  onChange={(v) => updateService((list) => list.map((x) => (x.id === item.id ? { ...x, bg: v === '' ? undefined : v } : x)))} />
+              </div>
             )}
             <span className="muted small">{item ? t('clickToSend') : t('emptySlides')}</span>
           </div>
@@ -995,6 +991,29 @@ export default function Operator() {
           setEditing(null); flash(t('saved'));
         }} />
       )}
+    </div>
+  );
+}
+
+// the first lines of a song, without its [Verse 1] / [Chorus] labels
+function firstLines(lyrics) {
+  return String(lyrics || '').split('\n').filter((l) => l.trim() && !/^\s*\[.*\]\s*$/.test(l)).slice(0, 2).join(' / ');
+}
+
+// one search result: what it is, its title, a short preview, and the two actions
+function ResultRow({ kind, t, title, badge, preview, onShow, onAdd }) {
+  const Icon = kind === 'song' ? Music : BookOpen;
+  return (
+    <div className="result result-row">
+      <span className={'result-kind ' + kind} aria-hidden="true"><Icon size={16} /></span>
+      <div className="result-main">
+        <div className="result-title"><strong>{title}</strong>{badge && <span className="result-badge mono">{badge}</span>}</div>
+        {preview && <div className="result-preview">{preview}</div>}
+      </div>
+      <div className="result-actions">
+        <button type="button" className="primary sm" onClick={onShow}>{t('showNow')}</button>
+        <button type="button" className="sm" onClick={onAdd}>{t('addToService')}</button>
+      </div>
     </div>
   );
 }

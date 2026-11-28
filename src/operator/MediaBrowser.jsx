@@ -3,6 +3,7 @@ import { api } from '../bridge.js';
 import { filterMedia, collectionsOf, formatBytes, formatDuration } from '../lib/mediaLib.js';
 import { makeThumb } from './thumbs.js';
 import { Plus } from 'lucide-react';
+import BackgroundPicker from './BackgroundPicker.jsx';
 
 // Pictures and videos: add, find (Pictures / Videos, search, collections, sort), preview and use.
 // The same browser appears in the narrow library column and, for big collections, as a large window.
@@ -96,12 +97,10 @@ export default function MediaBrowser({ t, library, setLibrary, settings, setSett
     <div className="lib-body">
       {tools}
       {busy && <p className="muted small" style={{ margin: 0 }}>{busy}</p>}
-      <label className="field"><span>{t('defaultBg')}</span>
-        <select value={settings.theme.bgMedia || ''} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, bgMedia: e.target.value || null } }))}>
-          <option value="">{t('none')}</option>
-          {media.map((m) => <option key={m.id} value={m.id}>{m.kind === 'video' ? '▶ ' : ''}{m.name}</option>)}
-        </select>
-      </label>
+      <div className="field"><span>{t('defaultBg')}</span>
+        <BackgroundPicker t={t} id="default-bg" media={media} value={settings.theme.bgMedia || ''}
+          onChange={(v) => setSettings((st) => ({ ...st, theme: { ...st.theme, bgMedia: v || null } }))} />
+      </div>
       <label className="swatch">{t('darken')}
         <input type="range" min="0" max="0.8" step="0.05" value={settings.theme.dim ?? 0.45} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, dim: +e.target.value } }))} style={{ flex: 1, height: 'auto', '--fill': ((settings.theme.dim ?? 0.45) / 0.8 * 100) + '%' }} />
       </label>

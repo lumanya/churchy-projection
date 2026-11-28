@@ -14,6 +14,11 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.15: picture background picker, better search panel
+
+- **Background** (above the slides, and Default background in the Media tab) opens a grid of thumbnails of every picture and video, with search and Pictures / Videos filters; a video plays silently while the pointer rests on it; the current choice is ticked.
+- **Search results** open in a wide, centred panel under the top bar: grouped (Bible, Songs, Verses with these words, Ask AI), each with an icon, title, two-line preview and Show now / Add to service. Close with the × button, Esc, or a click anywhere else; typing or clicking the search box opens it again.
+
 ## New in 0.14: livestream lower third
 
 - The OBS lower third is now a dark panel across the bottom, inside the TV-safe margins, only as tall as its text (never more than about a third of the picture). Text is large (about 4–5% of the picture height), bold and left-aligned; the reference or song title sits on top in the accent colour.
