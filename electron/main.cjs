@@ -197,14 +197,27 @@ function remoteInfo() {
 
 const same = (a, b) => a.length === b.length && a.length > 0 && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 // 'control' with the PIN, 'view' with the watch-only link, otherwise null
+// Wrong codes are counted per device for 10 minutes; after 30 that device is refused until the 10 minutes pass.
+const FAIL_WINDOW = 10 * 60 * 1000;
+function tooMany(ip) {
+  const f = remote.failures.get(ip);
+  if (!f) return false;
+  if (Date.now() - f.since > FAIL_WINDOW) { remote.failures.delete(ip); return false; }
+  return f.count >= 30;
+}
+function failed(ip) {
+  const f = remote.failures.get(ip);
+  if (!f || Date.now() - f.since > FAIL_WINDOW) remote.failures.set(ip, { count: 1, since: Date.now() });
+  else f.count += 1;
+}
+
 function access(req, url) {
   const ip = req.socket.remoteAddress;
-  const fails = remote.failures.get(ip) || 0;
-  if (fails >= 20) return null; // too many wrong tries from one device
+  if (tooMany(ip)) return null; // too many wrong tries from one device
   const pin = url.searchParams.get('pin') || req.headers['x-mwanga-pin'] || '';
   const view = url.searchParams.get('view') || '';
   const level = pin && same(pin, remote.pin) ? 'control' : view && same(view, remote.view) ? 'view' : null;
-  if (!level) remote.failures.set(ip, fails + 1);
+  if (!level) failed(ip);
   else remote.failures.delete(ip);
   return level;
 }
@@ -259,14 +272,15 @@ function handleRemote(req, res) {
   const tv = /^(?:\/\d{2,5})?\/tv(?:\/(\d{0,8}))?\/?$/.exec(url.pathname);
   if (tv) {
     const ip = req.socket.remoteAddress;
-    const fails = remote.failures.get(ip) || 0;
-    if (tv[1] && fails < 20 && same(tv[1], remote.tv)) {
+    const locked = tooMany(ip);
+    if (tv[1] && !locked && same(tv[1], remote.tv)) {
       remote.failures.delete(ip);
       res.writeHead(302, { Location: `/?view=${remote.view}#/stage` }); res.end(); return;
     }
-    if (tv[1]) remote.failures.set(ip, fails + 1);
+    // TV browsers load the address while it is still being typed ("/tv/9", "/tv/92"…): only a whole code counts as a wrong try
+    if (tv[1] && tv[1].length === remote.tv.length && !locked) failed(ip);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Mwanga</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#171615;color:#F3F0EA;font:24px system-ui"><form onsubmit="location.href='/tv/'+document.getElementById('c').value.replace(/\\D/g,'');return false" style="display:flex;flex-direction:column;gap:16px;align-items:center"><div style="font-weight:700;font-size:34px">Mwanga · Preacher screen</div><div>${tv[1] ? 'That code is not right. ' : ''}Type the TV code shown in Mwanga → Preacher</div><input id="c" inputmode="numeric" autofocus style="font:40px monospace;width:200px;text-align:center;padding:10px"><button style="font:24px system-ui;padding:10px 30px">Open</button></form></body>`);
+    res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Mwanga</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#171615;color:#F3F0EA;font:24px system-ui"><form onsubmit="location.href='/tv/'+document.getElementById('c').value.replace(/\\D/g,'');return false" style="display:flex;flex-direction:column;gap:16px;align-items:center"><div style="font-weight:700;font-size:34px">Mwanga · Preacher screen</div><div>${locked ? 'Too many wrong codes from this TV. Wait 10 minutes, or close and reopen Mwanga on the computer.' : (tv[1] ? 'That code is not right. ' : '') + 'Type the TV code shown in Mwanga → Preacher'}</div><input id="c" inputmode="numeric" autofocus style="font:40px monospace;width:200px;text-align:center;padding:10px"><button style="font:24px system-ui;padding:10px 30px">Open</button></form></body>`);
     return;
   }
   // static files from the built app
@@ -279,11 +293,14 @@ function handleRemote(req, res) {
 function startRemote() {
   if (remote.server) return Promise.resolve(remoteInfo());
   const s = readJSON('settings.json', {});
-  remote.pin = s.remotePin && /^\d{4,6}$/.test(s.remotePin) ? s.remotePin : String(crypto.randomInt(1000, 9999));
+  // the PIN, the OBS link and the TV code stay the same from week to week: kept in network.json by this process
+  const kept = readJSON('network.json', {}) || {};
+  remote.pin = [kept.pin, s.remotePin].find((x) => x && /^\d{4,6}$/.test(x)) || String(crypto.randomInt(1000, 9999));
   // the OBS link stays the same week after week, so the livestream computer is set up once
-  remote.view = s.streamToken && /^[a-f0-9]{12}$/.test(s.streamToken) ? s.streamToken : crypto.randomBytes(6).toString('hex');
+  remote.view = [kept.view, s.streamToken].find((x) => x && /^[a-f0-9]{12}$/.test(x)) || crypto.randomBytes(6).toString('hex');
   // the TV's address stays the same too, so a bookmark on the TV works every Sunday
-  remote.tv = s.tvCode && /^\d{4}$/.test(s.tvCode) ? s.tvCode : String(crypto.randomInt(1000, 9999));
+  remote.tv = [kept.tv, s.tvCode].find((x) => x && /^\d{4}$/.test(x)) || String(crypto.randomInt(1000, 9999));
+  if (kept.pin !== remote.pin || kept.view !== remote.view || kept.tv !== remote.tv) writeJSON('network.json', { pin: remote.pin, view: remote.view, tv: remote.tv });
   return new Promise((resolve) => {
     const server = http.createServer(handleRemote);
     // the same port every week, so phones that saved the link keep working; another port if it's taken
@@ -1024,6 +1041,17 @@ async function screenshotRun(dir) {
     const wrong = await get('/tv/0000');
     const bare = await get('/tv');
     const slashPort = await get(`/${info.port}/tv/${info.tvCode}`);
+    // a TV browser loading half-typed addresses, many times over, must not lock the TV out
+    for (let i = 0; i < 40; i++) { await get(`/tv/${info.tvCode.slice(0, 1)}`); await get(`/tv/${info.tvCode.slice(0, 2)}`); await get(`/tv/${info.tvCode.slice(0, 3)}`); }
+    const afterPartials = await get(`/tv/${info.tvCode}`);
+    // 30 whole wrong codes lock that device out for 10 minutes, with a message saying so
+    const wrongCode = info.tvCode === '1111' ? '2222' : '1111';
+    for (let i = 0; i < 30; i++) await get(`/tv/${wrongCode}`);
+    const lockedOut = await new Promise((resolve) => { http.get({ host: '127.0.0.1', port: info.port, path: `/tv/${info.tvCode}` }, (res) => { let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, says: b.includes('Too many wrong codes') })); }); });
+    remote.failures.clear();
+    // the same address after Mwanga's network is stopped and started again
+    stopRemote(); const again = await startRemote();
+    const sameAfterRestart = again.tvCode === info.tvCode && again.view === info.view && again.pin === info.pin;
     const on80 = await new Promise((resolve) => { http.get({ host: '127.0.0.1', port: 80, path: `/tv/${info.tvCode}` }, (res) => { res.resume(); resolve({ status: res.statusCode, location: res.headers.location || '' }); }).on('error', (e) => resolve({ error: e.code })); });
     const tvWin = new BrowserWindow({ width: 1280, height: 720, show: true, useContentSize: true });
     await tvWin.loadURL(`http://127.0.0.1:${info.port}/tv/${info.tvCode}`);
@@ -1044,7 +1072,7 @@ async function screenshotRun(dir) {
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-song.png');
     tvWin.destroy();
-    fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, slashPort, on80, page }, null, 1));
+    fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, slashPort, afterPartials, lockedOut, sameAfterRestart, on80, page }, null, 1));
   }
   // the screen stays awake while Mwanga is open, and the switch turns it off and on
   {
