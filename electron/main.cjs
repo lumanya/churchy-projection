@@ -169,7 +169,7 @@ function closeStream() { if (streamWin) streamWin.close(); }
 // Phones open http://<this PC>:<port>/?pin=1234 and get the same React app (remote and preacher views).
 // Every request must carry the PIN. Nothing is reachable from the internet unless the church's router forwards it.
 // pin: full control (phones). view: watch only (the livestream page in OBS).
-const remote = { server: null, port: 0, pin: '', view: '', clients: new Set(), failures: new Map() };
+const remote = { server: null, port: 0, pin: '', view: '', tv: '', clients: new Set(), failures: new Map() };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.json': 'application/json' };
 
 function lanAddresses() {
@@ -187,7 +187,10 @@ function remoteInfo() {
     on: !!remote.server, port: remote.port, pin: remote.pin, clients: remote.clients.size,
     urls: ips.map((ip) => `http://${ip}:${remote.port}/?pin=${remote.pin}`),
     view: remote.view,
-    streamUrls: ips.map((ip) => `http://${ip}:${remote.port}/?view=${remote.view}#/stream`)
+    streamUrls: ips.map((ip) => `http://${ip}:${remote.port}/?view=${remote.view}#/stream`),
+    // short enough to type with a TV remote: opens the preacher's screen, watch only
+    tvCode: remote.tv,
+    tvUrls: ips.map((ip) => `http://${ip}:${remote.port}/tv/${remote.tv}`)
   };
 }
 
@@ -250,6 +253,20 @@ function handleRemote(req, res) {
     }
     res.writeHead(404); res.end(); return;
   }
+  // a TV's browser: /tv/<code> opens the preacher's screen, watch only; without the right code, a page that asks for it
+  const tv = /^\/tv(?:\/(\d{0,8}))?\/?$/.exec(url.pathname);
+  if (tv) {
+    const ip = req.socket.remoteAddress;
+    const fails = remote.failures.get(ip) || 0;
+    if (tv[1] && fails < 20 && same(tv[1], remote.tv)) {
+      remote.failures.delete(ip);
+      res.writeHead(302, { Location: `/?view=${remote.view}#/stage` }); res.end(); return;
+    }
+    if (tv[1]) remote.failures.set(ip, fails + 1);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Mwanga</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#171615;color:#F3F0EA;font:24px system-ui"><form onsubmit="location.href='/tv/'+document.getElementById('c').value.replace(/\\D/g,'');return false" style="display:flex;flex-direction:column;gap:16px;align-items:center"><div style="font-weight:700;font-size:34px">Mwanga · Preacher screen</div><div>${tv[1] ? 'That code is not right. ' : ''}Type the TV code shown in Mwanga → Preacher</div><input id="c" inputmode="numeric" autofocus style="font:40px monospace;width:200px;text-align:center;padding:10px"><button style="font:24px system-ui;padding:10px 30px">Open</button></form></body>`);
+    return;
+  }
   // static files from the built app
   let file = path.normalize(path.join(DIST, decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)));
   if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -263,6 +280,8 @@ function startRemote() {
   remote.pin = s.remotePin && /^\d{4,6}$/.test(s.remotePin) ? s.remotePin : String(crypto.randomInt(1000, 9999));
   // the OBS link stays the same week after week, so the livestream computer is set up once
   remote.view = s.streamToken && /^[a-f0-9]{12}$/.test(s.streamToken) ? s.streamToken : crypto.randomBytes(6).toString('hex');
+  // the TV's address stays the same too, so a bookmark on the TV works every Sunday
+  remote.tv = s.tvCode && /^\d{4}$/.test(s.tvCode) ? s.tvCode : String(crypto.randomInt(1000, 9999));
   return new Promise((resolve) => {
     const server = http.createServer(handleRemote);
     // the same port every week, so phones that saved the link keep working; another port if it's taken
@@ -941,6 +960,22 @@ async function screenshotRun(dir) {
     await key('ArrowLeft'); await key('ArrowLeft'); await key('ArrowLeft'); await wait(900);
     r.back = await outT(); r.titleBack = await title();
     fs.writeFileSync(path.join(dir, 'next-verse-check.json'), JSON.stringify(r, null, 1));
+  }
+  // the preacher's screen on a TV, over Wi-Fi: /tv/<code>
+  {
+    const info = await startRemote();
+    const get = (p) => new Promise((resolve) => { http.get({ host: '127.0.0.1', port: info.port, path: p }, (res) => { let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, location: res.headers.location || '', asks: b.includes('TV code') })); }).on('error', () => resolve({ status: -1 })); });
+    const right = await get(`/tv/${info.tvCode}`);
+    const wrong = await get('/tv/0000');
+    const bare = await get('/tv');
+    const tvWin = new BrowserWindow({ width: 1280, height: 720, show: true, useContentSize: true });
+    await tvWin.loadURL(`http://127.0.0.1:${info.port}/tv/${info.tvCode}`);
+    await wait(2500);
+    const page = await tvWin.webContents.executeJavaScript(`({ hash: location.hash, ref: (document.querySelector('.stage-ref') || {}).innerText || '', text: ((document.querySelector('.stage-verse .stage-now-text') || {}).innerText || '').slice(0, 40), backLink: !!document.querySelector('.stage-back'), hint: (document.querySelector('.stage-hint') || {}).innerText || '' })`);
+    tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
+    await snap(tvWin, 'tv-stage.png');
+    tvWin.destroy();
+    fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, page }, null, 1));
   }
   // on a small laptop screen every tab must still be there and clickable
   {

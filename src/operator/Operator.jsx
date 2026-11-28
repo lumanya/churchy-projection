@@ -483,7 +483,7 @@ export default function Operator() {
   const toggleRemote = async () => {
     const info = remote.on ? await api.remote.stop() : await api.remote.start();
     setRemote(info);
-    setSetting({ remoteOn: info.on, remotePin: info.pin || settings.remotePin, streamToken: info.view || settings.streamToken });
+    setSetting({ remoteOn: info.on, remotePin: info.pin || settings.remotePin, streamToken: info.view || settings.streamToken, tvCode: info.tvCode || settings.tvCode });
   };
   const toggleStreamWindow = async () => {
     if (streamOpen) await api.stream.close(); else { await api.stream.open(); setStreamOpen(true); }
@@ -817,6 +817,25 @@ export default function Operator() {
                   {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                 </select>
               </label>
+              <strong style={{ marginTop: 6 }}>{t('stageTv')}</strong>
+              <p className="muted small" style={{ margin: 0 }}>{t('stageTvHelp')}</p>
+              {!remote.on ? (
+                <button type="button" id="tv-on" className="primary" onClick={toggleRemote}>{t('turnOn')}</button>
+              ) : remote.tvUrls && remote.tvUrls.length ? (
+                <>
+                  <div className="url-row">
+                    <code className="url tv-url" id="tv-url">{remote.tvUrls[0]}</code>
+                    <button type="button" className="sm" onClick={() => copy(remote.tvUrls[0])}>{t('copy')}</button>
+                  </div>
+                  {remote.tvUrls.length > 1 && <p className="muted small" style={{ margin: 0 }}>{t('otherAddresses')}: {remote.tvUrls.slice(1).join(', ')}</p>}
+                  <ol className="steps small">
+                    <li>{t('tvStep1')}</li>
+                    <li>{t('tvStep2')}</li>
+                    <li>{t('tvStep3')}</li>
+                    <li>{t('tvStep4')}</li>
+                  </ol>
+                </>
+              ) : <p className="muted small">{t('noNetwork')}</p>}
               <p className="muted small" style={{ margin: 0 }}>{t('stageTablet')}</p>
             </div>
           )}

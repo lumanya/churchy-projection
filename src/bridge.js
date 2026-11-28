@@ -111,3 +111,5 @@ function choose() {
 export const api = choose();
 export const inElectron = api.kind === 'electron';
 export const onPhone = api.kind === 'phone';
+// opened with a watch-only link: a TV or OBS, which never changes slides
+export const watchOnly = onPhone && new URLSearchParams(window.location.search).has('view');

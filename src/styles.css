@@ -461,3 +461,9 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 .mini-vtag.second { opacity: .72; }
 .stage-vtag { font: 700 2.4vh var(--mono); letter-spacing: .14em; color: var(--accent-soft); }
 .stage-vtag.second { opacity: .72; }
+
+.tv-url { font-size: 15px; letter-spacing: .02em; color: var(--accent-soft); }
+.stage-status { position: fixed; left: 50%; bottom: 1.5vh; transform: translateX(-50%); font: 500 2vh var(--mono); color: #FFC24A; background: rgba(0,0,0,.7); padding: .6vh 1.4vh; border-radius: .8vh; }
+.stage-hint { position: fixed; left: 50%; bottom: 1.5vh; transform: translateX(-50%); font: 500 2vh var(--mono); color: #8F897F; animation: hint-out 1s ease 12s forwards; }
+@keyframes hint-out { to { opacity: 0; } }
+body.is-stage { cursor: none; }

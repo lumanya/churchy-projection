@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, onPhone } from '../bridge.js';
+import { api, onPhone, watchOnly } from '../bridge.js';
 import { formatTimer, clockText } from './timer.js';
 import { useFitText } from '../output/Output.jsx';
 
@@ -9,7 +9,17 @@ export default function Stage() {
   const [live, setLive] = useState({});
   const [offset, setOffset] = useState(0);
   const [, tick] = useState(0);
-  useEffect(() => api.live.onUpdate((l) => { setLive(l || {}); if (l && l.now) setOffset(Date.now() - l.now); }), []);
+  const [link, setLink] = useState('connected');
+  useEffect(() => api.live.onUpdate((l) => { setLive(l || {}); if (l && l.now) setOffset(Date.now() - l.now); }, setLink), []);
+  // on a TV: OK (Enter) or a click fills the whole screen
+  useEffect(() => {
+    if (!watchOnly) return undefined;
+    const full = () => { if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); };
+    const key = (e) => { if (e.key === 'Enter' || e.key === ' ') full(); };
+    window.addEventListener('keydown', key);
+    window.addEventListener('click', full);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('click', full); };
+  }, []);
   useEffect(() => { const h = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(h); }, []);
 
   const slide = live.black ? null : live.slide;
@@ -18,7 +28,9 @@ export default function Stage() {
 
   return (
     <div className="stage">
-      {onPhone && <a className="stage-back" href="#/remote">← Remote</a>}
+      {onPhone && !watchOnly && <a className="stage-back" href="#/remote">← Remote</a>}
+      {watchOnly && link !== 'connected' && <div className="stage-status">Reconnecting to Mwanga…</div>}
+      {watchOnly && link === 'connected' && !document.fullscreenElement && <div className="stage-hint">Press OK for full screen</div>}
       <div className="stage-top">
         <div className="stage-clock">{clockText()}</div>
         {showTimer ? <div className={'stage-timer' + (t.over ? ' over' : t.warn ? ' warn' : '')}>{t.text}</div> : <div />}
