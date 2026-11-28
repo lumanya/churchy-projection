@@ -42,6 +42,6 @@ export function defaultSettings() {
     secondBible: '',
     maxLines: 4,
     displayId: null,
-    theme: { bg: '#000000', fg: '#FFFFFF', accent: '#FF6B2C' }
+    theme: { look: 'sunrise', bg: '#140805', fg: '#FFF7EE', accent: '#FFB067', font: 'sans', dual: 'stacked', transition: 'fade' }
   };
 }

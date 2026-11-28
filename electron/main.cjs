@@ -877,6 +877,46 @@ async function screenshotRun(dir) {
     fs.writeFileSync(path.join(dir, 'bibles-check.json'), JSON.stringify({ listed, rowState, copyright, shown, list }, null, 1));
     store.close();
   }
+  // looks, two translations, transitions
+  {
+    const setSelect = (sel, value) => js(`(() => { const s = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(value)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
+    const looks = await js(`[...document.querySelectorAll('.look')].map((b) => b.dataset.look)`);
+    await js(`document.querySelector('[data-look="royal"]').click()`); await wait(300);
+    await js(`[...document.querySelectorAll('.field')].find((f) => f.querySelector('span') && f.querySelector('span').textContent === 'Second translation').setAttribute('id', 'second-field')`);
+    await setSelect('#second-field select', 'kjv'); await wait(600);
+    const typeIn3 = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
+    await typeIn3('.search input', 'yh 3:16'); await wait(500);
+    await js(`document.querySelector('.search input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`); await wait(1500);
+    const outState = () => output.webContents.executeJavaScript(`(() => { const o = document.querySelector('.out'); const inner = document.querySelector('.out-layer:not(.leaving) .out-inner'); return {
+      layers: document.querySelectorAll('.out-layer').length, dual: inner ? inner.className : '', main: (document.querySelector('.out-layer:not(.leaving) .out-text') || {}).innerText || '',
+      second: (document.querySelector('.out-layer:not(.leaving) .out-sub') || {}).innerText || '', tags: [...document.querySelectorAll('.out-layer:not(.leaving) .out-tag')].map((x) => x.textContent),
+      mainSize: inner ? getComputedStyle(document.querySelector('.out-layer:not(.leaving) .out-text')).fontSize : '', secondSize: document.querySelector('.out-layer:not(.leaving) .out-sub') ? getComputedStyle(document.querySelector('.out-layer:not(.leaving) .out-sub')).fontSize : '',
+      font: getComputedStyle(o).fontFamily, backdrop: !!document.querySelector('.backdrop'), fades: o.classList.contains('fades') }; })()`);
+    const stacked = await outState();
+    const front = async (w) => { w.show(); w.moveTop(); w.focus(); await wait(900); };
+    await front(output);
+    await snap(output, 'output-royal-stacked.png');
+    await js(`document.querySelector('[data-dual="side"]').click()`); await wait(900);
+    const side = await outState();
+    await front(output);
+    await snap(output, 'output-royal-side.png');
+    await front(operator);
+    await js(`document.querySelector('[data-dual="stacked"]').click()`); await wait(300);
+    await js(`document.querySelector('[data-look="royal"]').scrollIntoView({ block: 'center' })`); await wait(300);
+    await snap(operator, 'operator-looks.png');
+    await js(`document.querySelector('.col-right').scrollTop = 0`);
+    await js(`document.querySelector('[data-look="parchment"]').click()`); await wait(900);
+    await front(output);
+    await snap(output, 'output-parchment.png');
+    await front(operator);
+    await js(`document.querySelector('[data-look="royal"]').click()`); await wait(300);
+    // black screen fades over everything
+    await js(`[...document.querySelectorAll('.top-actions button')].find((b) => b.textContent.includes('Black')).click()`); await wait(700);
+    const black = await output.webContents.executeJavaScript(`document.querySelector('.out-black').className`);
+    await js(`[...document.querySelectorAll('.top-actions button')].find((b) => b.textContent.includes('Restore')).click()`); await wait(300);
+    fs.writeFileSync(path.join(dir, 'looks-check.json'), JSON.stringify({ looks, stacked, side, black }, null, 1));
+  }
   app.quit();
 }
 

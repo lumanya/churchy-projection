@@ -8,6 +8,7 @@ import { uid } from '../lib/defaults.js';
 import MediaBrowser from './MediaBrowser.jsx';
 import AiSetup from './AiSetup.jsx';
 import BibleStore from './BibleStore.jsx';
+import { Music, BookOpen, Megaphone, Image as ImageIcon, Plus, X } from 'lucide-react';
 import { easyWorshipSongs, parseVideoPsalmFile, LockedBookError, pickEasyWorshipFiles } from '../lib/importers.js';
 
 export default function Library({ t, library, setLibrary, settings, setSettings, bibleList, setBibleList, bibles, setBibles, addItem, onEdit, flash, ai, setAi }) {
@@ -96,8 +97,8 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
   return (
     <div className="lib">
       <div className="tabs" role="tablist">
-        {['songs', 'bible', 'notices', 'media'].map((k) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(k)}</button>
+        {[['songs', Music], ['bible', BookOpen], ['notices', Megaphone], ['media', ImageIcon]].map(([k, Icon]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><Icon size={14} />{t(k)}</button>
         ))}
       </div>
 
@@ -105,7 +106,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
         <div className="lib-body">
           <div className="row">
             <input className="grow" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('title') + ' / ' + t('number')} aria-label={t('songs')} />
-            <button type="button" onClick={() => onEdit({ kind: 'song', value: null })}>+</button>
+            <button type="button" onClick={() => onEdit({ kind: 'song', value: null })} aria-label={t('newSong') || '+'} className="icon-only"><Plus size={16} /></button>
           </div>
           <div className="lib-list">
             {songs.map((s) => (
@@ -115,7 +116,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
                   <span className="svc-text"><span>{s.title}</span><span className="muted small">{s.book}</span></span>
                 </button>
                 <button type="button" className="ghost sm" onClick={() => onEdit({ kind: 'song', value: s })}>{t('edit')}</button>
-                <button type="button" className="ghost sm" aria-label={t('remove')} onClick={() => { if (confirm(`${t('remove')}: ${s.title}?`)) setLibrary((l) => ({ ...l, songs: l.songs.filter((x) => x.id !== s.id) })); }}>×</button>
+                <button type="button" className="ghost sm" aria-label={t('remove')} onClick={() => { if (confirm(`${t('remove')}: ${s.title}?`)) setLibrary((l) => ({ ...l, songs: l.songs.filter((x) => x.id !== s.id) })); }}><X size={14} /></button>
               </div>
             ))}
           </div>
@@ -156,7 +157,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
             {bibleList.map((b) => (
               <div className="lib-row" key={b.id}>
                 <span className="lib-main static"><span className="mono accent num">{(b.lang || '').toUpperCase()}</span><span>{b.name}</span>{b.license && <span className="chip small">{b.license}</span>}</span>
-                {!b.bundled && <button type="button" className="ghost sm" aria-label={t('remove')} onClick={async () => { await api.bible.remove(b.id); setBibleList(await api.bible.list()); }}>×</button>}
+                {!b.bundled && <button type="button" className="ghost sm" aria-label={t('remove')} onClick={async () => { await api.bible.remove(b.id); setBibleList(await api.bible.list()); }}><X size={14} /></button>}
               </div>
             ))}
           </div>
@@ -181,7 +182,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
                   <span className="svc-text"><span>{n.title}</span><span className="muted small">{String(n.body).split('\n')[0]}</span></span>
                 </button>
                 <button type="button" className="ghost sm" onClick={() => onEdit({ kind: 'notice', value: n })}>{t('edit')}</button>
-                <button type="button" className="ghost sm" aria-label={t('remove')} onClick={() => setLibrary((l) => ({ ...l, notices: l.notices.filter((x) => x.id !== n.id) }))}>×</button>
+                <button type="button" className="ghost sm" aria-label={t('remove')} onClick={() => setLibrary((l) => ({ ...l, notices: l.notices.filter((x) => x.id !== n.id) }))}><X size={14} /></button>
               </div>
             ))}
           </div>

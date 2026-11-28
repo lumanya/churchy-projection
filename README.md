@@ -14,6 +14,14 @@
 - **English first**, with the whole interface in Swahili one click away (EN / SW).
 - **Safe saving**: everything saves automatically; files are written atomically with a backup, and after a crash or power cut Mwanga reopens on the slide that was live.
 
+## New in 0.11: a premium finish
+
+- **Projector → Look**: 8 designed looks (Classic, Sunrise, Midnight, Royal, Forest, Slate, Parchment, High contrast), each with its own background, colours and typeface. Sunrise, Midnight, Royal and Forest have a soft light that drifts slowly. Colours can still be changed; changing the background colour turns the designed background off.
+- **Two translations**: the main version leads in full size; the second follows a little smaller, in a softer colour, still readable from the back. Choose one above the other (with a labelled divider) or side by side. Version tags (main filled, second outlined) sit in the reference bar.
+- **Between slides**: a gentle fade (or a cut). Black screen fades too; notices slide up.
+- **Typography**: balanced line breaks, a soft shadow on designed and picture backgrounds, a new serif (Source Serif 4) for Royal and Parchment.
+- **Operator**: one icon set (Lucide) on the top bar, tabs and service list; restyled dropdowns, sliders, colour pickers and scrollbars; a calmer verse-finder card; the Library no longer scrolls sideways; smoother hover, press, modal and toast states.
+
 ## New in 0.10: Get more Bibles
 
 - **Library → Bible → Get more Bibles** downloads free, openly licensed versions from eBible.org with one click (3–6 MB each, then offline):

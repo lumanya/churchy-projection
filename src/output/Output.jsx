@@ -1,9 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../bridge.js';
 import { Background, MediaSlide } from './MediaLayer.jsx';
+import { Backdrop } from './Backdrop.jsx';
+import { activeLook, fontOf, lookById, slideKey } from '../lib/looks.js';
+
+const FADE_MS = 450;
 
 // Shrinks the text until it fits the screen, so long verses never run off the edge.
-function useFitText(deps, max = 9, min = 2.2) {
+export function useFitText(deps, max = 9, min = 2.2) {
   const box = useRef(null);
   const inner = useRef(null);
   useLayoutEffect(() => {
@@ -20,9 +24,76 @@ function useFitText(deps, max = 9, min = 2.2) {
   return [box, inner];
 }
 
+// The words of one slide. With a second translation the main version leads and the second follows,
+// smaller and in a softer colour but still easy to read: one above the other, or side by side.
+export function SlideWords({ slide, theme, size }) {
+  const dual = slide.sub ? (theme.dual === 'side' ? 'side' : 'stacked') : '';
+  const [box, inner] = useFitText([slide.text, slide.sub, slide.title, dual, size]);
+  const second = (slide.versions && slide.versions[1]) || '';
+  return (
+    <div className="out-box" ref={box}>
+      <div className={'out-inner' + (dual ? ' dual dual-' + dual : '')} ref={inner}>
+        {slide.title && <div className="out-title" style={{ color: theme.accent }}>{slide.title}</div>}
+        {dual === 'side' ? (
+          <div className="out-cols">
+            <div className="out-text">{slide.text}</div>
+            <div className="out-col-rule" style={{ background: theme.accent }} />
+            <div className="out-sub">{second && <span className="out-sub-tag" style={{ color: theme.accent }}>{second}</span>}{slide.sub}</div>
+          </div>
+        ) : (
+          <>
+            <div className="out-text">{slide.text}</div>
+            {slide.sub && (
+              <>
+                <div className="out-rule"><span style={{ background: theme.accent }} />{second && <em style={{ color: theme.accent }}>{second}</em>}<span style={{ background: theme.accent }} /></div>
+                <div className="out-sub">{slide.sub}</div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// "John 3:16" with the versions as small tags: the main one filled, the second outlined
+export function RefBar({ slide, theme }) {
+  if (!slide.ref) return null;
+  const [name, ...rest] = slide.ref.split(' · ');
+  const versions = slide.versions || rest;
+  return (
+    <div className="out-ref">
+      <span className="out-ref-name" style={{ color: theme.accent }}>{name}</span>
+      <span className="out-ref-tags">
+        {versions.map((v, i) => (
+          <span key={v + i} className={'out-tag' + (i ? ' second' : '')} style={i ? { borderColor: theme.accent, color: theme.accent } : { background: theme.accent, color: lookById(theme.look)?.light ? '#fff' : '#120A05' }}>{v}</span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+// Slides on screen: the new one fades in while the old one fades out (or cuts, if the church prefers).
+function useLayers(slide, fade) {
+  const key = slideKey(slide);
+  const [layers, setLayers] = useState(() => (slide ? [{ key, slide, leaving: false }] : []));
+  useEffect(() => {
+    setLayers((ls) => {
+      const kept = fade ? ls.filter((l) => !l.leaving && l.key !== key).map((l) => ({ ...l, leaving: true })) : [];
+      const same = ls.find((l) => !l.leaving && l.key === key);
+      return slide ? [...kept, same ? { ...same, slide } : { key, slide, leaving: false }] : kept;
+    });
+    if (!fade) return undefined;
+    const t = setTimeout(() => setLayers((ls) => ls.filter((l) => !l.leaving)), FADE_MS + 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, fade]);
+  return layers;
+}
+
 export default function Output() {
   const [live, setLive] = useState({ slide: null, black: false, message: '', theme: null });
-  const [, setSize] = useState(0);
+  const [size, setSize] = useState(0);
   useEffect(() => api.live.onUpdate((l) => setLive(l || {})), []);
   useEffect(() => {
     const resize = () => setSize((n) => n + 1);
@@ -31,33 +102,32 @@ export default function Output() {
   }, []);
 
   const theme = live.theme || { bg: '#000000', fg: '#FFFFFF', accent: '#FF6B2C' };
-  const slide = live.black ? null : live.slide;
-  const hasText = slide && !slide.media && (slide.text || slide.title);
-  const [box, inner] = useFitText([slide && slide.text, slide && slide.sub, slide && slide.title, window.innerWidth, window.innerHeight]);
+  const fade = theme.transition !== 'cut';
+  const slide = live.slide || null;
+  const layers = useLayers(slide, fade);
+  const textBg = slide && !slide.media ? slide.bg : null;
+  const onImage = !!textBg || (activeLook(theme) && !lookById(theme.look)?.light);
 
   return (
-    <div className="out" style={{ background: theme.bg, color: theme.fg }}>
-      {slide && !slide.media && <Background bg={slide.bg} dim={theme.dim ?? 0.45} />}
-      {slide && slide.media && <MediaSlide media={slide.media} video={live.video} report={api.video.report} />}
-      {hasText && (
-        <>
-          <div className="out-box" ref={box}>
-            <div className="out-inner" ref={inner}>
-              {slide.title && <div className="out-title" style={{ color: theme.accent }}>{slide.title}</div>}
-              <div className="out-text">{slide.text}</div>
-              {slide.sub && <div className="out-sub">{slide.sub}</div>}
-            </div>
-          </div>
-          {slide.ref && (
-            <div className="out-ref">
-              <span style={{ color: theme.accent }}>{slide.ref.split(' · ')[0]}</span>
-              <span className="out-ref-tr">{slide.ref.split(' · ').slice(1).join(' · ')}</span>
-            </div>
-          )}
-          {slide.credit && <div className="out-credit">{slide.credit}</div>}
-        </>
-      )}
+    <div className={'out' + (onImage ? ' on-image' : '') + (fade ? ' fades' : '')}
+      style={{ background: theme.bg, color: theme.fg, fontFamily: fontOf(theme), '--fade': FADE_MS + 'ms', '--accent': theme.accent }}>
+      <Backdrop theme={theme} />
+      {textBg && <Background bg={textBg} dim={theme.dim ?? 0.45} />}
+      {layers.map((l) => (
+        <div key={l.key} className={'out-layer' + (l.leaving ? ' leaving' : '')}>
+          {l.slide.media
+            ? <MediaSlide media={l.slide.media} video={l.leaving ? { ...(live.video || {}), volume: 0 } : live.video} report={l.leaving ? () => {} : api.video.report} />
+            : (l.slide.text || l.slide.title) && (
+              <>
+                <SlideWords slide={l.slide} theme={theme} size={size} />
+                <RefBar slide={l.slide} theme={theme} />
+                {l.slide.credit && <div className="out-credit">{l.slide.credit}</div>}
+              </>
+            )}
+        </div>
+      ))}
       {live.message && <div className="out-message" style={{ background: theme.accent }}>{live.message}</div>}
+      <div className={'out-black' + (live.black ? ' on' : '')} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../bridge.js';
 import { filterMedia, collectionsOf, formatBytes, formatDuration } from '../lib/mediaLib.js';
 import { makeThumb } from './thumbs.js';
+import { Plus } from 'lucide-react';
 
 // Pictures and videos: add, find (Pictures / Videos, search, collections, sort), preview and use.
 // The same browser appears in the narrow library column and, for big collections, as a large window.
@@ -102,7 +103,7 @@ export default function MediaBrowser({ t, library, setLibrary, settings, setSett
         </select>
       </label>
       <label className="swatch">{t('darken')}
-        <input type="range" min="0" max="0.8" step="0.05" value={settings.theme.dim ?? 0.45} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, dim: +e.target.value } }))} style={{ flex: 1, height: 'auto' }} />
+        <input type="range" min="0" max="0.8" step="0.05" value={settings.theme.dim ?? 0.45} onChange={(e) => setSettings((st) => ({ ...st, theme: { ...st.theme, dim: +e.target.value } }))} style={{ flex: 1, height: 'auto', '--fill': ((settings.theme.dim ?? 0.45) / 0.8 * 100) + '%' }} />
       </label>
       {!large && grid}
 
@@ -146,7 +147,7 @@ function MediaCard({ m, t, large, onPreview, onShow, onAdd, onBg, isBg }) {
         {m.collection && <div className="media-coll">{m.collection}</div>}
         <div className="row">
           <button type="button" className="primary" onClick={() => onShow(m)}>{t('showNow')}</button>
-          <button type="button" onClick={() => onAdd(m)} title={t('addToService')}>+</button>
+          <button type="button" onClick={() => onAdd(m)} title={t('addToService')} aria-label={t('addToService')} className="icon-only"><Plus size={14} /></button>
           <button type="button" onClick={() => onBg(m)} title={t('useAsBg')}>BG</button>
         </div>
       </div>

@@ -2,12 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, inElectron } from '../bridge.js';
 import { makeT } from '../lib/i18n.js';
 import { aiConfig, aiReady } from '../lib/aiConfig.js';
+import { LOOKS, applyLook } from '../lib/looks.js';
+
+const LOOK_SAMPLE = { text: 'The LORD is my shepherd;\nI shall not want.', ref: 'Psalm 23:1 · KJV', versions: ['KJV'] };
 import { defaultLibrary, defaultSettings, uid } from '../lib/defaults.js';
 import { slidesFor } from '../lib/slides.js';
 import { parseReference, formatReference, getVerses } from '../lib/bibleRef.js';
 import Library from './Library.jsx';
 import { SongEditor, NoticeEditor, ServiceEditor } from './Editors.jsx';
 import { Mini, Logo } from './Mini.jsx';
+import { MonitorPlay, MonitorOff, EyeOff, Eye, Eraser, Monitor, Presentation, Radio, Smartphone, Ear, Music, BookOpen, Megaphone, Image as ImageIcon, Type, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { formatTimer } from '../stage/timer.js';
 import { findSpokenReferences, validReferences } from '../lib/spokenRefs.js';
 import { buildSongIndex, identifySong, followSong } from '../lib/songMatch.js';
@@ -534,9 +538,9 @@ export default function Operator() {
           <button type="button" className="mono-btn" aria-label="Language" onClick={() => setSetting({ lang: settings.lang === 'en' ? 'sw' : 'en' })}>
             {settings.lang === 'en' ? <>EN <span className="muted">/ SW</span></> : <>SW <span className="muted">/ EN</span></>}
           </button>
-          <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput} title={outputOpen ? t('projectorOn') : t('projectorOff')}>{outputOpen ? '■ ' + t('projector') : '▶ ' + t('projector')}</button>
-          <button type="button" className={black ? 'warn' : ''} onClick={() => setBlack((b) => !b)}>{black ? t('restore') : t('black')}</button>
-          <button type="button" onClick={() => setLive(null)}>{t('clear')}</button>
+          <button type="button" className={'icon-btn' + (outputOpen ? '' : ' primary')} onClick={toggleOutput} title={outputOpen ? t('projectorOn') : t('projectorOff')}>{outputOpen ? <MonitorOff size={16} /> : <MonitorPlay size={16} />} {t('projector')}</button>
+          <button type="button" className={'icon-btn' + (black ? ' warn' : '')} onClick={() => setBlack((b) => !b)}>{black ? <Eye size={16} /> : <EyeOff size={16} />} {black ? t('restore') : t('black')}</button>
+          <button type="button" className="icon-btn" onClick={() => setLive(null)}><Eraser size={16} /> {t('clear')}</button>
         </div>
       </header>
 
@@ -549,12 +553,12 @@ export default function Operator() {
               <div key={it.id} className={'svc-item' + (i === selected ? ' on' : '') + (live && live.itemId === it.id ? ' is-live' : '')}>
                 <button type="button" className="svc-main" onClick={() => setSelected(i)}>
                   <span className="mono muted">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="svc-text"><span>{it.title}</span><span className="muted small">{t(it.type === 'bible' ? 'bible' : it.type === 'song' ? 'songs' : it.type === 'notice' ? 'notices' : it.type === 'media' ? 'media' : 'text')}</span></span>
+                  <span className="svc-text"><span>{it.title}</span><span className="muted small svc-kind">{(() => { const Icon = { bible: BookOpen, song: Music, notice: Megaphone, media: ImageIcon }[it.type] || Type; return <Icon size={12} />; })()}{t(it.type === 'bible' ? 'bible' : it.type === 'song' ? 'songs' : it.type === 'notice' ? 'notices' : it.type === 'media' ? 'media' : 'text')}</span></span>
                 </button>
                 <span className="svc-tools">
-                  <button type="button" aria-label={t('moveUp')} onClick={() => i > 0 && updateService((l) => { const c = [...l]; [c[i - 1], c[i]] = [c[i], c[i - 1]]; return c; })}>↑</button>
-                  <button type="button" aria-label={t('moveDown')} onClick={() => i < items.length - 1 && updateService((l) => { const c = [...l]; [c[i + 1], c[i]] = [c[i], c[i + 1]]; return c; })}>↓</button>
-                  <button type="button" aria-label={t('remove')} onClick={() => { updateService((l) => l.filter((x) => x.id !== it.id)); if (selected >= items.length - 1) setSelected(Math.max(0, items.length - 2)); }}>×</button>
+                  <button type="button" aria-label={t('moveUp')} onClick={() => i > 0 && updateService((l) => { const c = [...l]; [c[i - 1], c[i]] = [c[i], c[i - 1]]; return c; })}><ChevronUp size={15} /></button>
+                  <button type="button" aria-label={t('moveDown')} onClick={() => i < items.length - 1 && updateService((l) => { const c = [...l]; [c[i + 1], c[i]] = [c[i], c[i + 1]]; return c; })}><ChevronDown size={15} /></button>
+                  <button type="button" aria-label={t('remove')} onClick={() => { updateService((l) => l.filter((x) => x.id !== it.id)); if (selected >= items.length - 1) setSelected(Math.max(0, items.length - 2)); }}><X size={15} /></button>
                 </span>
               </div>
             ))}
@@ -608,7 +612,7 @@ export default function Operator() {
                   <label className="swatch"><input type="checkbox" checked={video.loop} onChange={(e) => setVideo((v) => ({ ...v, loop: e.target.checked }))} /> {t('loop')}</label>
                 </div>
                 <label className="swatch">{t('volume')}
-                  <input type="range" min="0" max="1" step="0.05" value={video.volume} onChange={(e) => setVideo((v) => ({ ...v, volume: +e.target.value }))} style={{ flex: 1, height: 'auto' }} />
+                  <input type="range" min="0" max="1" step="0.05" value={video.volume} onChange={(e) => setVideo((v) => ({ ...v, volume: +e.target.value }))} style={{ flex: 1, height: 'auto', '--fill': (video.volume * 100) + '%' }} />
                 </label>
                 {videoProgress && videoProgress.file === liveVideoFile && videoProgress.duration > 0 && (
                   <>
@@ -654,8 +658,8 @@ export default function Operator() {
           )}
 
           <div className="tabs right-tabs" role="tablist">
-            {[['projector', t('projector')], ['stage', t('preacher')], ['stream', t('stream')], ['phone', t('phone')], ['listen', t('listen')]].map(([k, label]) => (
-              <button key={k} type="button" role="tab" data-tab={k} aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>{label}</button>
+            {[['projector', t('projector'), Monitor], ['stage', t('preacher'), Presentation], ['stream', t('stream'), Radio], ['phone', t('phone'), Smartphone], ['listen', t('listen'), Ear]].map(([k, label, Icon]) => (
+              <button key={k} type="button" role="tab" data-tab={k} aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}><Icon size={14} />{label}</button>
             ))}
           </div>
 
@@ -663,7 +667,7 @@ export default function Operator() {
             <div className="panel">
               <div className="row between">
                 <strong>{outputOpen ? t('projectorOn') : t('projectorOff')}</strong>
-                <button type="button" className={outputOpen ? '' : 'primary'} onClick={toggleOutput}>{outputOpen ? '■' : '▶'} {t('display')}</button>
+                <button type="button" className={'icon-btn' + (outputOpen ? '' : ' primary')} onClick={toggleOutput}>{outputOpen ? <MonitorOff size={15} /> : <MonitorPlay size={15} />} {t('display')}</button>
               </div>
               {displays.length < 2 && <p className="muted small" style={{ margin: 0 }}>{t('noSecond')}</p>}
               <label className="field"><span>{t('display')}</span>
@@ -685,9 +689,41 @@ export default function Operator() {
                   {bibleList.filter((b) => b.id !== settings.mainBible).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </label>
-              <div className="row">
+              {settings.secondBible && (
+                <div className="field"><span>{t('twoVersions')}</span>
+                  <div className="chips" role="radiogroup" aria-label={t('twoVersions')}>
+                    {[['stacked', t('stacked')], ['side', t('sideBySide')]].map(([k, label]) => (
+                      <button key={k} type="button" role="radio" data-dual={k} aria-checked={(settings.theme.dual || 'stacked') === k} className={(settings.theme.dual || 'stacked') === k ? 'on' : ''} onClick={() => setSetting({ theme: { ...settings.theme, dual: k } })}>{label}</button>
+                    ))}
+                  </div>
+                  <span className="muted small">{t('twoVersionsHelp')}</span>
+                </div>
+              )}
+              <div className="field"><span>{t('look')}</span>
+                <div className="looks">
+                  {LOOKS.map((l) => {
+                    const th = applyLook(settings.theme, l.id);
+                    const on = settings.theme.look === l.id || (!settings.theme.look && l.id === 'classic');
+                    return (
+                      <button key={l.id} type="button" className={'look' + (on ? ' on' : '')} data-look={l.id} aria-pressed={on} onClick={() => setSetting({ theme: applyLook(settings.theme, l.id) })}>
+                        <Mini slide={LOOK_SAMPLE} theme={th} />
+                        <span>{l.name[settings.lang] || l.name.en}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="field"><span>{t('transition')}</span>
+                <div className="chips" role="radiogroup" aria-label={t('transition')}>
+                  {[['fade', t('fade')], ['cut', t('cut')]].map(([k, label]) => (
+                    <button key={k} type="button" role="radio" aria-checked={(settings.theme.transition || 'fade') === k} className={(settings.theme.transition || 'fade') === k ? 'on' : ''} onClick={() => setSetting({ theme: { ...settings.theme, transition: k } })}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="row swatches">
                 <label className="swatch"><input type="color" value={settings.theme.bg} onChange={(e) => setSetting({ theme: { ...settings.theme, bg: e.target.value } })} /> {t('background')}</label>
                 <label className="swatch"><input type="color" value={settings.theme.fg} onChange={(e) => setSetting({ theme: { ...settings.theme, fg: e.target.value } })} /> {t('textColour')}</label>
+                <label className="swatch"><input type="color" value={settings.theme.accent || '#FF6B2C'} onChange={(e) => setSetting({ theme: { ...settings.theme, accent: e.target.value } })} /> {t('accentColour')}</label>
               </div>
             </div>
           )}
@@ -774,7 +810,7 @@ export default function Operator() {
             <div className="panel">
               <p className="muted small" style={{ margin: 0 }}>{t('streamHelp')}</p>
               <label className="field"><span>{t('textSize')}</span>
-                <input type="range" min="0.7" max="1.5" step="0.05" value={settings.streamScale || 1} onChange={(e) => setStreamSetting({ streamScale: +e.target.value })} style={{ height: 'auto' }} />
+                <input type="range" min="0.7" max="1.5" step="0.05" value={settings.streamScale || 1} onChange={(e) => setStreamSetting({ streamScale: +e.target.value })} style={{ height: 'auto', '--fill': (((settings.streamScale || 1) - 0.7) / 0.8 * 100) + '%' }} />
               </label>
 
               <strong>{t('streamNetwork')}</strong>
