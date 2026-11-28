@@ -169,7 +169,7 @@ function closeStream() { if (streamWin) streamWin.close(); }
 // Phones open http://<this PC>:<port>/?pin=1234 and get the same React app (remote and preacher views).
 // Every request must carry the PIN. Nothing is reachable from the internet unless the church's router forwards it.
 // pin: full control (phones). view: watch only (the livestream page in OBS).
-const remote = { server: null, port: 0, pin: '', view: '', tv: '', clients: new Set(), failures: new Map() };
+const remote = { server: null, server80: null, port: 0, pin: '', view: '', tv: '', clients: new Set(), failures: new Map() };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.json': 'application/json' };
 
 function lanAddresses() {
@@ -190,7 +190,8 @@ function remoteInfo() {
     streamUrls: ips.map((ip) => `http://${ip}:${remote.port}/?view=${remote.view}#/stream`),
     // short enough to type with a TV remote: opens the preacher's screen, watch only
     tvCode: remote.tv,
-    tvUrls: ips.map((ip) => `http://${ip}:${remote.port}/tv/${remote.tv}`)
+    // on port 80 too when the computer allows it, so the TV address needs no ":8765" (hard to type on a TV remote)
+    tvUrls: ips.map((ip) => (remote.server80 ? `http://${ip}/tv/${remote.tv}` : `http://${ip}:${remote.port}/tv/${remote.tv}`))
   };
 }
 
@@ -254,7 +255,8 @@ function handleRemote(req, res) {
     res.writeHead(404); res.end(); return;
   }
   // a TV's browser: /tv/<code> opens the preacher's screen, watch only; without the right code, a page that asks for it
-  const tv = /^\/tv(?:\/(\d{0,8}))?\/?$/.exec(url.pathname);
+  // "/tv/7709", and also "/8765/tv/7709" (the colon before the port typed as a slash on a TV keyboard)
+  const tv = /^(?:\/\d{2,5})?\/tv(?:\/(\d{0,8}))?\/?$/.exec(url.pathname);
   if (tv) {
     const ip = req.socket.remoteAddress;
     const fails = remote.failures.get(ip) || 0;
@@ -291,7 +293,13 @@ function startRemote() {
         else { remote.server = null; resolve(remoteInfo()); }
       };
       server.once('error', onError);
-      server.listen(p, '0.0.0.0', () => { server.off('error', onError); remote.server = server; remote.port = p; resolve(remoteInfo()); });
+      server.listen(p, '0.0.0.0', () => {
+        server.off('error', onError); remote.server = server; remote.port = p;
+        // the same pages on port 80 if it is free: then "http://192.168.x.x/tv/1234" works without a port number
+        const s80 = http.createServer(handleRemote);
+        s80.once('error', () => { remote.server80 = null; resolve(remoteInfo()); });
+        s80.listen(80, '0.0.0.0', () => { remote.server80 = s80; resolve(remoteInfo()); });
+      });
     };
     tryPort(8765, 10);
   });
@@ -301,7 +309,9 @@ function stopRemote() {
   for (const res of remote.clients) res.end();
   remote.clients.clear();
   if (remote.server) remote.server.close();
+  if (remote.server80) remote.server80.close();
   remote.server = null;
+  remote.server80 = null;
   return remoteInfo();
 }
 
@@ -968,6 +978,8 @@ async function screenshotRun(dir) {
     const right = await get(`/tv/${info.tvCode}`);
     const wrong = await get('/tv/0000');
     const bare = await get('/tv');
+    const slashPort = await get(`/${info.port}/tv/${info.tvCode}`);
+    const on80 = await new Promise((resolve) => { http.get({ host: '127.0.0.1', port: 80, path: `/tv/${info.tvCode}` }, (res) => { res.resume(); resolve({ status: res.statusCode, location: res.headers.location || '' }); }).on('error', (e) => resolve({ error: e.code })); });
     const tvWin = new BrowserWindow({ width: 1280, height: 720, show: true, useContentSize: true });
     await tvWin.loadURL(`http://127.0.0.1:${info.port}/tv/${info.tvCode}`);
     await wait(2500);
@@ -986,7 +998,7 @@ async function screenshotRun(dir) {
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-song.png');
     tvWin.destroy();
-    fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, page }, null, 1));
+    fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, slashPort, on80, page }, null, 1));
   }
   // on a small laptop screen every tab must still be there and clickable
   {

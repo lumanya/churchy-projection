@@ -18,6 +18,7 @@
 
 - **Preacher → On a TV over Wi-Fi** shows a short address such as `http://192.168.1.20:8765/tv/4821`. Type it in a smart TV's browser (Hisense VIDAA: Home → Apps → Browser) and the TV shows the preacher's screen, driven by the same PC. No cable, no second computer, no second person.
 - Watch only: the TV cannot change slides. The 4-digit TV code keeps other devices on the Wi-Fi out; the address stays the same every week, so a bookmark on the TV works each Sunday.
+- 0.13.4: the TV address needs no port number when port 80 is free on the computer (`http://192.168.x.x/tv/1234`), and an address typed with a slash instead of the colon (`192.168.x.x/8765/tv/1234`) works too.
 - 0.13.3: the preacher's screen fills any screen size, also in older smart-TV browsers (the app is now built for older browser engines), and re-measures its text whenever the screen changes or fonts arrive; verses can grow to 11% and songs to 15% of the screen height.
 - 0.13.2: song lines and notices on the preacher's screen grow to fill the space and are centred, like on the projector.
 - 0.13.1: while a verse is on screen, the preacher's screen leaves out NEXT and the verse uses that room in larger text (songs and notices still show NEXT).
