@@ -721,13 +721,6 @@ export default function Operator() {
                   {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                 </select>
               </label>
-              <label className="field"><span>{t('message')}</span>
-                <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setMessageOn(true); if (e.key === 'Escape') setMessageOn(false); }} />
-              </label>
-              <div className="row">
-                <button type="button" className={messageOn ? 'warn' : 'primary'} onClick={() => setMessageOn((m) => !m)} disabled={!message}>{messageOn ? t('hide') : t('show')}</button>
-                <span className="muted small">{t('messageHelp')}</span>
-              </div>
               <div className="bibles-on-screen">
                 <label className="field"><span>{t('mainBible')}</span>
                   <select id="main-bible" value={settings.mainBible} onChange={(e) => setSetting({ mainBible: e.target.value, ...(settings.secondBible === e.target.value ? { secondBible: '' } : {}) })}>
@@ -754,6 +747,13 @@ export default function Operator() {
                   <span className="muted small">{t('twoVersionsHelp')}</span>
                 </div>
               )}
+              <label className="field"><span>{t('message')}</span>
+                <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setMessageOn(true); if (e.key === 'Escape') setMessageOn(false); }} />
+              </label>
+              <div className="row">
+                <button type="button" className={messageOn ? 'warn' : 'primary'} onClick={() => setMessageOn((m) => !m)} disabled={!message}>{messageOn ? t('hide') : t('show')}</button>
+                <span className="muted small">{t('messageHelp')}</span>
+              </div>
               <div className="field"><span>{t('look')}</span>
                 <div className="looks">
                   {LOOKS.map((l) => {

@@ -400,7 +400,7 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 /* 0.11.1: the right column never squeezes its parts; the tab bar stays in view while the column scrolls */
 .col-right > * { flex-shrink: 0; }
 .right-tabs { position: sticky; top: -16px; z-index: 4; background: var(--bg); margin: 0 -16px; padding: 10px 16px 0; min-height: 42px; box-shadow: 0 6px 10px -8px rgba(0,0,0,.6); }
-.bibles-on-screen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bibles-on-screen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 
 /* ---------- 0.12: verse layout (reference on top, labelled translations) ---------- */
 .out-head { position: absolute; left: 8vw; right: 8vw; top: 5.5vh; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 1.8vh; }
@@ -446,3 +446,8 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 .stage-tag { font: 600 2.2vh var(--mono); letter-spacing: .1em; padding: .4vh 1vh; border-radius: .6vh; background: var(--accent-soft); color: #120A05; }
 .stage-tag.second { background: transparent; border: 1px solid var(--accent-soft); color: var(--accent-soft); }
 .stage-ver.second { padding-top: 0.6em; border-top: 1px solid #2E2B27; }
+
+/* 0.12.1: nothing in the right column may be wider than the column */
+.col-right { overflow-x: hidden; }
+.field { min-width: 0; }
+.field > select, .field > input { width: 100%; min-width: 0; text-overflow: ellipsis; }

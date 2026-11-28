@@ -948,6 +948,8 @@ async function screenshotRun(dir) {
     for (const [w, h] of [[1280, 680], [1366, 728]]) {
       operator.setContentSize(w, h); await wait(700);
       sizes[w + 'x' + h] = await js(`[...document.querySelectorAll('.right-tabs button, .lib .tabs button')].map((b) => { const r = b.getBoundingClientRect(); return b.textContent + ':' + Math.round(r.height); })`);
+      await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
+      sizes[w + 'x' + h + ' bibles'] = await js(`(() => { const col = document.querySelector('.col-right').getBoundingClientRect(); return ['#main-bible', '#second-bible'].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return sel + ':' + (r.left >= col.left - 1 && r.right <= col.right + 1 && r.width > 100 ? 'inside' : 'OUTSIDE ' + Math.round(r.left) + '-' + Math.round(r.right) + ' of ' + Math.round(col.left) + '-' + Math.round(col.right)); }); })()`);
       await snap(operator, `operator-${w}.png`);
     }
     fs.writeFileSync(path.join(dir, 'small-screen-check.json'), JSON.stringify(sizes, null, 1));
