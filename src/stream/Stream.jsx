@@ -70,20 +70,51 @@ export default function Stream() {
     );
   }
 
+  return <LowerThird slide={slide} theme={theme} opts={opts} />;
+}
+
+// The lower third: a dark panel across the bottom, inside the TV-safe margins. It is only as tall as its text,
+// never more than about a third of the picture. Verses show the main translation only, with its reference on top.
+function LowerThird({ slide, theme, opts }) {
+  const text = slide && !slide.media ? slide.text : '';
+  const verse = !!(slide && slide.verse);
+  const head = verse ? slide.refName : (slide && (slide.title || (slide.ref ? slide.ref.split(' · ')[0] : ''))) || '';
+  const version = verse && slide.versions ? slide.versions[0] : '';
+  const credit = verse ? slide.mainCredit : slide && slide.credit;
+  const base = (verse ? 4.3 : 5) * opts.scale;
+  const textRef = useRef(null);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const again = () => setTick((n) => n + 1);
+    window.addEventListener('resize', again);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(again).catch(() => {});
+    return () => window.removeEventListener('resize', again);
+  }, []);
+  // as large as the design asks, smaller only when the words would make the panel too tall
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    const limit = window.innerHeight * 0.26;
+    let s = base;
+    el.style.fontSize = s + 'vh';
+    while (s > 1.8 && el.scrollHeight > limit) { s -= 0.1; el.style.fontSize = s + 'vh'; }
+  });
+  if (!text) return <div className="stream lower" />;
+  const solid = opts.key !== 'transparent';
   return (
     <div className="stream lower">
-      {text && (
-        // over a key colour the bar is solid, so OBS's colour remover can't eat into it
-        <div className="lower-bar" style={{ borderLeftColor: theme.accent, background: opts.key === 'transparent' ? 'rgba(12, 11, 10, 0.78)' : '#0C0B0A' }}>
-          <div className="lower-box" ref={box}>
-            <div className="lower-text" ref={inner}>
-              {slide.title && <div className="lower-title" style={{ color: theme.accent }}>{slide.title}</div>}
-              {text}
-            </div>
+      <div className="lt-panel" key={slideKeyOf(slide)} style={{ background: solid ? '#0E0D0C' : 'rgba(14, 13, 12, 0.86)', boxShadow: solid ? 'none' : '0 1.7vh 4.6vh rgba(0,0,0,0.45)' }}>
+        {head && (
+          <div className="lt-head" style={{ fontSize: (verse ? 3.15 : 2.4) * opts.scale + 'vh' }}>
+            <span style={{ color: theme.accent }}>{head}</span>
+            {version && <span className="lt-version">{version}</span>}
           </div>
-          {refName && <div className="lower-ref" style={{ color: theme.accent }}>{refName}{slide.credit && <span className="stream-credit"> · {slide.credit}</span>}</div>}
-        </div>
-      )}
+        )}
+        <div className={'lt-text' + (verse ? ' verse' : '')} ref={textRef}>{text}</div>
+      </div>
+      {credit && <div className="lt-credit">{credit}</div>}
     </div>
   );
 }
+
+const slideKeyOf = (s) => (s ? [s.title, s.text, s.ref].join('|') : '');

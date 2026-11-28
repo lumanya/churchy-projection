@@ -28,6 +28,8 @@ export function slidesFor(item, { songs, notices, bibles, settings, media }) {
         // the reference alone ("John 3:16") and the verse number, for the header and the number before the text
         refName: formatReference({ ...item.ref, from: v.n, to: v.n }, lang),
         verse: v.n,
+        // the main translation's credit alone, for the livestream (which shows only the main translation)
+        mainCredit: main.credit || undefined,
         // licences such as CC BY-SA ask for credit wherever the text is shown
         credit: [main.credit, other ? second.credit : ''].filter(Boolean).filter((c, i, a) => a.indexOf(c) === i).join(' · ') || undefined
       };

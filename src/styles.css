@@ -482,3 +482,14 @@ body.is-stage { cursor: none; }
 .stage-verse-box, .stage-text-box { flex: 1 1 0%; min-height: 0; }
 .stage-verse > * + * { margin-top: 0.7em; }
 .stage-ver > * + * { margin-top: 0.25em; }
+
+/* ---------- 0.14: livestream lower third ---------- */
+.stream.lower { overflow: hidden; }
+.lt-panel { position: absolute; left: 6.25vw; right: 6.25vw; bottom: 6.7vh; box-sizing: border-box; padding: 2.4vh 2.3vw 3vh; border-radius: 1.5vh; color: #FFFFFF; display: flex; flex-direction: column; animation: lt-in 320ms cubic-bezier(.2,.7,.2,1) both; }
+.lt-panel > * + * { margin-top: 1.1vh; }
+@keyframes lt-in { from { opacity: 0; transform: translateY(1vh); } to { opacity: 1; transform: none; } }
+.lt-head { display: flex; align-items: baseline; font-weight: 700; line-height: 1.1; }
+.lt-version { margin-left: 1.7vh; font-family: var(--mono); font-size: 0.68em; font-weight: 600; letter-spacing: 0.14em; color: rgba(255,255,255,0.62); }
+.lt-text { font-weight: 700; line-height: 1.24; white-space: pre-line; text-align: left; }
+.lt-text.verse { white-space: normal; }
+.lt-credit { position: absolute; right: 6.45vw; bottom: 3.1vh; font: 500 1.3vh var(--mono); color: rgba(255,255,255,0.6); }

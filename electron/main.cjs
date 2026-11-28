@@ -786,7 +786,7 @@ async function screenshotRun(dir) {
     const obs = new BrowserWindow({ width: 1920, height: 1080, show: false });
     await obs.loadURL(`${base}?style=lower&key=transparent&scale=1`);
     await wait(2000);
-    const lower = await obs.webContents.executeJavaScript(`({ text: (document.querySelector('.lower-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`);
+    const lower = await obs.webContents.executeJavaScript(`({ text: (document.querySelector('.lt-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`);
     await snap(obs, 'obs-lower.png');
     await obs.loadURL(`${base}?style=full&key=transparent&scale=1`);
     await wait(2000);
@@ -803,7 +803,7 @@ async function screenshotRun(dir) {
     await js(`document.querySelector('[data-tab="stream"]').click()`); await wait(300);
     await snap(operator, 'operator-stream.png');
     await js(`document.querySelector('#stream-window').click()`); await wait(1800);
-    const cable = streamWin ? await streamWin.webContents.executeJavaScript(`({ text: (document.querySelector('.lower-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`) : null;
+    const cable = streamWin ? await streamWin.webContents.executeJavaScript(`({ text: (document.querySelector('.lt-text') || {}).innerText || '', bg: getComputedStyle(document.body).backgroundColor })`) : null;
     if (streamWin) await snap(streamWin, 'stream-window.png');
     fs.writeFileSync(path.join(dir, 'stream-check.json'), JSON.stringify({ lower, full, viewCommand, wrongPin, cable, links: info2.streamUrls }, null, 1));
     obs.destroy();
@@ -970,6 +970,22 @@ async function screenshotRun(dir) {
     await key('ArrowLeft'); await key('ArrowLeft'); await key('ArrowLeft'); await wait(900);
     r.back = await outT(); r.titleBack = await title();
     fs.writeFileSync(path.join(dir, 'next-verse-check.json'), JSON.stringify(r, null, 1));
+  }
+  // the livestream lower third with a verse and two translations: only the main one shows
+  {
+    const setSel = (sel, value) => js(`(() => { const s = document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(value)}); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
+    await setSel('#second-bible', 'swhonen'); await wait(800);
+    const info3 = await startRemote();
+    const obs2 = new BrowserWindow({ width: 1920, height: 1080, show: true, useContentSize: true, transparent: false });
+    await obs2.loadURL(`http://127.0.0.1:${info3.port}/?view=${info3.view}#/stream?style=lower`);
+    await wait(2500);
+    const lt = await obs2.webContents.executeJavaScript(`(() => { const p = document.querySelector('.lt-panel'); const t = document.querySelector('.lt-text'); if (!p) return null; const r = p.getBoundingClientRect(); return { head: (document.querySelector('.lt-head') || {}).innerText || '', text: t.innerText.slice(0, 40), panelTopPct: Math.round(r.top / innerHeight * 100), panelHeightPct: Math.round(r.height / innerHeight * 100), textVh: Math.round(parseFloat(getComputedStyle(t).fontSize) / innerHeight * 1000) / 10, credit: (document.querySelector('.lt-credit') || {}).innerText || '' }; })()`);
+    obs2.show(); obs2.moveTop(); obs2.focus(); await wait(700);
+    await snap(obs2, 'obs-lower-verse.png');
+    obs2.destroy();
+    await setSel('#second-bible', ''); await wait(400);
+    fs.writeFileSync(path.join(dir, 'lower-third-check.json'), JSON.stringify(lt, null, 1));
   }
   // the preacher's screen on a TV, over Wi-Fi: /tv/<code>
   {
