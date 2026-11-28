@@ -40,7 +40,7 @@ export function useFitText(deps, max = 9, min = 2.2) {
 // smaller and in a softer colour but still easy to read: one above the other, or side by side.
 export function SlideWords({ slide, theme, size }) {
   const dual = slide.sub ? (theme.dual === 'side' ? 'side' : 'stacked') : '';
-  const [box, inner] = useFitText([slide.text, slide.sub, slide.title, dual, size]);
+  const [box, inner] = useFitText([slide.text, slide.sub, slide.title, dual, size], 13);
   const second = (slide.versions && slide.versions[1]) || '';
   return (
     <div className="out-box" ref={box}>

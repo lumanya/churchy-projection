@@ -398,14 +398,29 @@ function importMediaPaths(paths) {
   return out;
 }
 
+// File pickers open in the folder used last time, for each kind of file (pictures and videos, songs, Bibles…)
+function startFolder(kind) {
+  const d = (readJSON('folders.json', {}) || {})[kind];
+  try { return d && fs.statSync(d).isDirectory() ? d : undefined; } catch (_) { return undefined; }
+}
+function rememberFolder(kind, filePaths) {
+  if (!filePaths || !filePaths.length) return;
+  const all = readJSON('folders.json', {}) || {};
+  all[kind] = path.dirname(filePaths[0]);
+  writeJSON('folders.json', all);
+}
+
 ipcMain.handle('media:import', async () => {
   // the automatic check passes its own files instead of opening the file picker
   if (process.env.MWANGA_TEST_MEDIA) return importMediaPaths(process.env.MWANGA_TEST_MEDIA.split(';'));
   const r = await dialog.showOpenDialog(operator, {
     properties: ['openFile', 'multiSelections'],
+    defaultPath: startFolder('media'),
     filters: [{ name: 'Pictures and videos', extensions: Object.keys(MEDIA_TYPES).map((e) => e.slice(1)) }]
   });
-  return r.canceled ? [] : importMediaPaths(r.filePaths.slice(0, 100));
+  if (r.canceled) return [];
+  rememberFolder('media', r.filePaths);
+  return importMediaPaths(r.filePaths.slice(0, 100));
 });
 const thumbDir = () => path.join(mediaDir(), 'thumbs');
 ipcMain.handle('media:remove', (_e, m) => {
@@ -621,8 +636,10 @@ ipcMain.on('live:set', (_e, live) => {
 });
 
 ipcMain.handle('file:open', async (_e, filters, binary) => {
-  const r = await dialog.showOpenDialog(operator, { properties: ['openFile', 'multiSelections'], filters });
+  const kind = 'open:' + String((filters && filters[0] && filters[0].name) || 'files');
+  const r = await dialog.showOpenDialog(operator, { properties: ['openFile', 'multiSelections'], filters, defaultPath: startFolder(kind) });
   if (r.canceled) return [];
+  rememberFolder(kind, r.filePaths);
   return r.filePaths.slice(0, 200).map((p) => ({ name: path.basename(p), text: binary ? undefined : fs.readFileSync(p, 'utf8'), data: binary ? fs.readFileSync(p) : undefined }));
 });
 
@@ -1022,6 +1039,7 @@ async function screenshotRun(dir) {
     // a song on the TV: lines fill the screen
     await js(`[...document.querySelectorAll('.svc-main')].find((b) => b.textContent.includes('Asante Bwana')).click()`); await wait(400);
     await js(`document.querySelector('.slides .slide').click()`); await wait(1500);
+    page.projectorSongVh = await output.webContents.executeJavaScript(`(() => { const t = document.querySelector('.out-layer:not(.leaving) .out-text'); return t ? Math.round(parseFloat(getComputedStyle(t).fontSize) / innerHeight * 1000) / 10 : 0; })()`);
     page.song = await tvWin.webContents.executeJavaScript(`(() => { const t = document.querySelector('.stage-text'); return t ? { text: t.innerText.slice(0, 30), size: getComputedStyle(t).fontSize, align: getComputedStyle(t).textAlign } : null; })()`);
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-song.png');
@@ -1037,6 +1055,13 @@ async function screenshotRun(dir) {
     await js(`document.querySelector('#keep-awake').click()`); await wait(400);
     awake.afterOn = await js(`window.mwanga.power.isAwake()`);
     fs.writeFileSync(path.join(dir, 'awake-check.json'), JSON.stringify(awake, null, 1));
+  }
+  // file pickers remember the last folder for each kind of file
+  {
+    rememberFolder('media', [path.join(dir, 'poster.png')]);
+    rememberFolder('open:Bible', [path.join(app.getPath('temp'), 'x.usfm')]);
+    const folders = { media: startFolder('media'), bible: startFolder('open:Bible'), songs: startFolder('open:Songs') || null, gone: (rememberFolder('open:Gone', ['/no/such/folder/a.txt']), startFolder('open:Gone') || null) };
+    fs.writeFileSync(path.join(dir, 'folders-check.json'), JSON.stringify(folders, null, 1));
   }
   // on a small laptop screen every tab must still be there and clickable
   {
