@@ -683,12 +683,22 @@ export default function Operator() {
                 <button type="button" className={messageOn ? 'warn' : 'primary'} onClick={() => setMessageOn((m) => !m)} disabled={!message}>{messageOn ? t('hide') : t('show')}</button>
                 <span className="muted small">{t('messageHelp')}</span>
               </div>
-              <label className="field"><span>{t('secondBible')}</span>
-                <select value={settings.secondBible} onChange={(e) => setSetting({ secondBible: e.target.value })}>
-                  <option value="">{t('none')}</option>
-                  {bibleList.filter((b) => b.id !== settings.mainBible).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </label>
+              <div className="bibles-on-screen">
+                <label className="field"><span>{t('mainBible')}</span>
+                  <select id="main-bible" value={settings.mainBible} onChange={(e) => setSetting({ mainBible: e.target.value, ...(settings.secondBible === e.target.value ? { secondBible: '' } : {}) })}>
+                    {bibleList.map((b) => <option key={b.id} value={b.id}>{b.short || b.name}{b.short ? ' · ' + b.name : ''}</option>)}
+                  </select>
+                </label>
+                <label className="field"><span>{t('secondBible')}</span>
+                  <select id="second-bible" value={settings.secondBible} onChange={(e) => setSetting({ secondBible: e.target.value })}>
+                    <option value="">{t('none')}</option>
+                    {bibleList.filter((b) => b.id !== settings.mainBible).map((b) => <option key={b.id} value={b.id}>{b.short || b.name}{b.short ? ' · ' + b.name : ''}</option>)}
+                  </select>
+                </label>
+              </div>
+              {bibleList.length > 1 && settings.secondBible && (
+                <button type="button" className="sm" onClick={() => setSetting({ mainBible: settings.secondBible, secondBible: settings.mainBible })}>⇅ {t('swapBibles')}</button>
+              )}
               {settings.secondBible && (
                 <div className="field"><span>{t('twoVersions')}</span>
                   <div className="chips" role="radiogroup" aria-label={t('twoVersions')}>

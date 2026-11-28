@@ -396,3 +396,8 @@ button.ghost.sm { display: inline-grid; place-items: center; }
 .right-tabs { gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .right-tabs::-webkit-scrollbar { display: none; }
 .right-tabs button { font-size: 12px; }
+
+/* 0.11.1: the right column never squeezes its parts; the tab bar stays in view while the column scrolls */
+.col-right > * { flex-shrink: 0; }
+.right-tabs { position: sticky; top: -16px; z-index: 4; background: var(--bg); margin: 0 -16px; padding: 10px 16px 0; min-height: 42px; box-shadow: 0 6px 10px -8px rgba(0,0,0,.6); }
+.bibles-on-screen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

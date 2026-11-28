@@ -883,8 +883,7 @@ async function screenshotRun(dir) {
     await js(`document.querySelector('[data-tab="projector"]').click()`); await wait(300);
     const looks = await js(`[...document.querySelectorAll('.look')].map((b) => b.dataset.look)`);
     await js(`document.querySelector('[data-look="royal"]').click()`); await wait(300);
-    await js(`[...document.querySelectorAll('.field')].find((f) => f.querySelector('span') && f.querySelector('span').textContent === 'Second translation').setAttribute('id', 'second-field')`);
-    await setSelect('#second-field select', 'kjv'); await wait(600);
+    await setSelect('#second-bible', 'kjv'); await wait(600);
     const typeIn3 = (sel, text) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(text)}); i.dispatchEvent(new Event('input', { bubbles: true })); i.focus(); })()`);
     await typeIn3('.search input', 'yh 3:16'); await wait(500);
     await js(`document.querySelector('.search input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`); await wait(1500);
@@ -916,6 +915,16 @@ async function screenshotRun(dir) {
     const black = await output.webContents.executeJavaScript(`document.querySelector('.out-black').className`);
     await js(`[...document.querySelectorAll('.top-actions button')].find((b) => b.textContent.includes('Restore')).click()`); await wait(300);
     fs.writeFileSync(path.join(dir, 'looks-check.json'), JSON.stringify({ looks, stacked, side, black }, null, 1));
+  }
+  // on a small laptop screen every tab must still be there and clickable
+  {
+    const sizes = {};
+    for (const [w, h] of [[1280, 680], [1366, 728]]) {
+      operator.setContentSize(w, h); await wait(700);
+      sizes[w + 'x' + h] = await js(`[...document.querySelectorAll('.right-tabs button, .lib .tabs button')].map((b) => { const r = b.getBoundingClientRect(); return b.textContent + ':' + Math.round(r.height); })`);
+      await snap(operator, `operator-${w}.png`);
+    }
+    fs.writeFileSync(path.join(dir, 'small-screen-check.json'), JSON.stringify(sizes, null, 1));
   }
   app.quit();
 }

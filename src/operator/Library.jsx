@@ -133,7 +133,7 @@ export default function Library({ t, library, setLibrary, settings, setSettings,
 
       {tab === 'bible' && (
         <div className="lib-body">
-          <label className="field"><span>{t('bible')}</span>
+          <label className="field"><span>{t('mainBible')}</span>
             <select value={settings.mainBible} onChange={(e) => setSettings((s) => ({ ...s, mainBible: e.target.value }))}>
               {bibleList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
