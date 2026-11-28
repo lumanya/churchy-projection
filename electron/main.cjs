@@ -974,6 +974,12 @@ async function screenshotRun(dir) {
     const page = await tvWin.webContents.executeJavaScript(`({ hash: location.hash, ref: (document.querySelector('.stage-ref') || {}).innerText || '', text: ((document.querySelector('.stage-verse .stage-now-text') || {}).innerText || '').slice(0, 40), backLink: !!document.querySelector('.stage-back'), nextShown: !!document.querySelector('.stage-next'), hint: (document.querySelector('.stage-hint') || {}).innerText || '' })`);
     tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
     await snap(tvWin, 'tv-stage.png');
+    // a song on the TV: lines fill the screen
+    await js(`[...document.querySelectorAll('.svc-main')].find((b) => b.textContent.includes('Asante Bwana')).click()`); await wait(400);
+    await js(`document.querySelector('.slides .slide').click()`); await wait(1500);
+    page.song = await tvWin.webContents.executeJavaScript(`(() => { const t = document.querySelector('.stage-text'); return t ? { text: t.innerText.slice(0, 30), size: getComputedStyle(t).fontSize, align: getComputedStyle(t).textAlign } : null; })()`);
+    tvWin.show(); tvWin.moveTop(); tvWin.focus(); await wait(800);
+    await snap(tvWin, 'tv-song.png');
     tvWin.destroy();
     fs.writeFileSync(path.join(dir, 'tv-check.json'), JSON.stringify({ urls: info.tvUrls, right, wrong, bare, page }, null, 1));
   }

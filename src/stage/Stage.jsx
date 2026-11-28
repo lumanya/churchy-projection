@@ -46,7 +46,7 @@ export default function Stage() {
         ) : (
           <>
             <div className="stage-label">{live.black ? 'BLACK SCREEN' : 'NOW'}{slide && slide.ref ? ' · ' + slide.ref.split(' · ')[0] : ''}</div>
-            <div className="stage-now-text">{slide ? (slide.media ? `${slide.media.kind === 'video' ? '▶ Video' : 'Picture'}: ${slide.media.name}` : slide.text) : ''}</div>
+            {slide && !slide.media ? <StageText text={slide.text} /> : <div className="stage-now-text">{slide && slide.media ? `${slide.media.kind === 'video' ? '▶ Video' : 'Picture'}: ${slide.media.name}` : ''}</div>}
           </>
         )}
       </div>
@@ -76,6 +76,16 @@ function StageVerse({ slide }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// song lines and notices: as large as the space allows, centred, like on the projector
+function StageText({ text }) {
+  const [box, inner] = useFitText([text], 12, 3);
+  return (
+    <div className="stage-text-box" ref={box}>
+      <div className="stage-text" ref={inner}>{text}</div>
     </div>
   );
 }

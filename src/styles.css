@@ -472,3 +472,5 @@ body.is-stage { cursor: none; }
 .stage { display: flex; flex-direction: column; gap: 2vh; }
 .stage-now { flex: 1; min-height: 0; }
 .stage-next { flex: none; }
+.stage-text-box { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.stage-text { width: 100%; max-height: 100%; text-align: center; font-weight: 700; line-height: 1.22; white-space: pre-line; text-wrap: balance; }
